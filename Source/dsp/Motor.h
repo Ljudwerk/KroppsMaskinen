@@ -8,8 +8,8 @@
 // Kolvbas 2 kan följa Kolvbasen: den spelar då Kolvbasens mönster, förskjutet 0–3 sextondelar och
 // transponerat, med sin egen klang.
 //
-// Mastern: kanalerna + Grindrummet + Ekot → Svajet → Klämman (med bastrumman som sidokedja) → master →
-// DC-spärr → toppbegränsare.
+// Mastern: kanalerna + Grindrummet + Ekot → Svajet → Klämman (med bastrumman som sidokedja) → Kassetten →
+// master → DC-spärr → toppbegränsare.
 //
 // Var 32:a sample räknas modulationen, Spänningen och Varvtalets musikaliska läge fram och läggs på
 // parametrarna.
@@ -68,6 +68,7 @@ struct MotorParams
     EkoParams eko;
     SvajParams svaj;
     KlamParams klam;
+    KassettParams kassetten;
     float master = 0.65f;
     float spanning = 0.0f;        // 0..1: Spänningen
     double musikalisktVarv = 1.0; // Varvtalet i musikaliskt läge (1 = av; skivspelarläget sköts av processorn)
@@ -95,6 +96,7 @@ public:
         taktverket.prepare (sampleRate);
         for (auto& d : drivet) d.prepare (sampleRate);
         grindrum.prepare (sampleRate);
+        kassetten.prepare (sampleRate);
         eko.prepare (sampleRate);
         svaj.prepare (sampleRate);
         klam.prepare (sampleRate);
@@ -112,7 +114,7 @@ public:
         hugget.reset();
         taktverket.reset();
         for (auto& d : drivet) d.reset();
-        grindrum.reset(); eko.reset(); svaj.reset(); klam.reset();
+        grindrum.reset(); eko.reset(); svaj.reset(); klam.reset(); kassetten.reset();
         modulation.reset();
         for (auto& d : dc) d.reset();
         limiterEnv = 0.0f;
@@ -202,6 +204,7 @@ public:
                 kanalNiva[k] += (mal[k] - kanalNiva[k]) * nivaKoef;
                 l *= panL[k] * kanalNiva[k];
                 r *= panR[k] * kanalNiva[k];
+                blockTopp[k] = std::max (blockTopp[k], std::max (std::abs (l), std::abs (r)));
                 L += l; R += r;
                 aL += l * effektiv.kanaler[k].sandA; aR += r * effektiv.kanaler[k].sandA;
                 bL += l * effektiv.kanaler[k].sandB; bR += r * effektiv.kanaler[k].sandB;
@@ -219,6 +222,7 @@ public:
             R += gR + eR;
             svaj.tick (L, R);
             klam.tick (L, R, stampverket.bastrumma() * mal[2]);
+            kassetten.tick (L, R);
 
             L = dc[0].tick (L * effektiv.master);
             R = dc[1].tick (R * effektiv.master);
@@ -230,11 +234,37 @@ public:
 
             left[i] = juce::jlimit (-1.0f, 1.0f, L);
             if (right != nullptr) right[i] = juce::jlimit (-1.0f, 1.0f, R);
+
+            if (--scopeRaknare <= 0)
+            {
+                scopeRaknare = scopeSteg;
+                const int pos = scopePos.load (std::memory_order_relaxed);
+                scope[(size_t) pos].store (0.5f * (L + R), std::memory_order_relaxed);
+                scopePos.store ((pos + 1) % scopeLangd, std::memory_order_relaxed);
+            }
         }
+
+        for (size_t k = 0; k < (size_t) antalKanaler; ++k)
+        {
+            float f = kanalTopp[k].load (std::memory_order_relaxed);
+            while (blockTopp[k] > f && ! kanalTopp[k].compare_exchange_weak (f, blockTopp[k])) {}
+            blockTopp[k] = 0.0f;
+        }
+        ppqNu.store (taktverket.ppqVid (numSamples), std::memory_order_relaxed);
     }
+
+    // Spolar tillbaka: sekvensern börjar om från steg 0 (egen klocka).
+    void spola() { taktverket.reset(); }
 
     // För gränssnittet.
     std::array<std::atomic<int>, antalKanaler> aktuelltSteg {}, spelarMonster {};
+    std::array<std::atomic<uint32_t>, antalKanaler> kanalSlag {};   // ökar för varje slag/ton
+    std::array<std::atomic<uint32_t>, antalSpar> trumSlag {};       // ökar för varje trumslag
+    std::array<std::atomic<float>, antalKanaler> kanalTopp {};      // topp sedan gränssnittet läste (byts mot 0)
+    std::atomic<double> ppqNu { -1.0 };                             // positionen vid blockets slut, −1 = stilla
+    static constexpr int scopeLangd = 512, scopeSteg = 4;           // var fjärde sampel, ≈ 43 ms
+    std::array<std::atomic<float>, scopeLangd> scope {};
+    std::atomic<int> scopePos { 0 };
     std::atomic<juce::int64> antalSpeladeSteg { 0 };
     int getTransponering() const { return transponering; }
     float getKlamReduktionDb() const { return klam.getReduktionDb(); }
@@ -318,6 +348,7 @@ private:
         eko.setParams (e.eko, taktverket.gar() ? taktverket.bpm() : bas.takt.tempo);
         svaj.setParams (e.svaj);
         klam.setParams (e.klam);
+        kassetten.setParams (e.kassetten);
 
         // Tyst och solo, nivå och panorering (lika effekt, 0 dB i mitten).
         bool nagonSolo = false;
@@ -346,6 +377,14 @@ private:
         }
     }
 
+    void slaTrumma (Trumma t, float vel)
+    {
+        stampverket.slag (t, vel);
+        trumSlag[(size_t) t].fetch_add (1, std::memory_order_relaxed);
+        kanalSlag[(size_t) Kanal::Stampverket].fetch_add (1, std::memory_order_relaxed);
+    }
+    void raknaSlag (Kanal k) { kanalSlag[(size_t) k].fetch_add (1, std::memory_order_relaxed); }
+
     void hanteraMidi (const juce::MidiMessage& m, bool gar)
     {
         if (m.isController() && m.getControllerNumber() == 1) { modulation.setModhjul ((float) m.getControllerValue() / 127.0f); return; }
@@ -357,7 +396,7 @@ private:
             if (m.isNoteOn())
                 if (const int s = Stampverket::sparForNot (m.getNoteNumber()); s >= 0)
                 {
-                    stampverket.slag ((Trumma) s, m.getFloatVelocity());
+                    slaTrumma ((Trumma) s, m.getFloatVelocity());
                     if (s == 0) modulation.tonPa (EnvUtlosare::Bastrumma, m.getFloatVelocity());
                 }
             return;
@@ -373,7 +412,7 @@ private:
         const int kanal = m.getChannel();
         if (kanal == 3)
         {
-            if (m.isNoteOn()) { hugget.noteOn (m.getNoteNumber(), m.getFloatVelocity()); modulation.tonPa (EnvUtlosare::Hugget, m.getFloatVelocity()); }
+            if (m.isNoteOn()) { hugget.noteOn (m.getNoteNumber(), m.getFloatVelocity()); modulation.tonPa (EnvUtlosare::Hugget, m.getFloatVelocity()); raknaSlag (Kanal::Hugget); }
             else if (m.isNoteOff()) hugget.noteOff (m.getNoteNumber());
             return;
         }
@@ -381,6 +420,7 @@ private:
         if (m.isNoteOn())
         {
             b.noteOn (m.getNoteNumber(), m.getFloatVelocity());
+            raknaSlag (kanal == 2 ? Kanal::Kolvbas2 : Kanal::Kolvbasen);
             modulation.tonPa (kanal == 2 ? EnvUtlosare::Kolvbas2 : EnvUtlosare::Kolvbasen, m.getFloatVelocity());
         }
         else if (m.isNoteOff()) b.noteOff (m.getNoteNumber());
@@ -419,7 +459,7 @@ private:
                 if (st.slag == 0) continue;
                 if (st.chans > 0 && Taktverket::chansSlag (k, s) >= chansVarden[(size_t) st.chans]) continue;
                 const float vel = st.slag == 2 ? 1.0f : 0.72f;
-                stampverket.slag ((Trumma) s, vel);
+                slaTrumma ((Trumma) s, vel);
                 if (s == 0) modulation.tonPa (EnvUtlosare::Bastrumma, vel);
                 const int slag = st.ratchet + 1;
                 for (int h = 1; h < slag; ++h)
@@ -451,6 +491,7 @@ private:
             kolvbas[(size_t) b].steg (ton, st.slag == 2, basHaller[(size_t) b], gate);
             basHaller[(size_t) b] = st.glid;
             modulation.tonPa (b == 0 ? EnvUtlosare::Kolvbasen : EnvUtlosare::Kolvbas2, st.slag == 2 ? 1.0f : 0.72f);
+            raknaSlag ((Kanal) b);
         }
 
         // --- Hugget
@@ -470,6 +511,7 @@ private:
                 const float vel = st.slag == 2 ? 1.0f : 0.72f;
                 hugget.noteOn (ton, vel);
                 modulation.tonPa (EnvUtlosare::Hugget, vel);
+                raknaSlag (Kanal::Hugget);
                 if (st.glid) huggHaller = ton;   // hålls till nästa ton
                 else if (antalHuggAv < (int) huggAv.size())
                     huggAv[(size_t) antalHuggAv++] = { ton, juce::jmax (1, (int) (perSteg * tonLangder[(size_t) st.langd])) };
@@ -490,7 +532,7 @@ private:
         {
             if (--vantande[(size_t) i].om <= 0)
             {
-                stampverket.slag ((Trumma) vantande[(size_t) i].spar, vantande[(size_t) i].vel);
+                slaTrumma ((Trumma) vantande[(size_t) i].spar, vantande[(size_t) i].vel);
                 vantande[(size_t) i] = vantande[(size_t) --antalVantande];
             }
             else ++i;
@@ -519,10 +561,12 @@ private:
     Ekot eko;
     Svajet svaj;
     Klamman klam;
+    Kassetten kassetten;
     Modulation modulation;
     std::array<DcSparr, 2> dc;
     float limiterEnv = 0.0f, limiterSlapp = 0.999f, nivaKoef = 0.01f;
-    std::array<float, antalKanaler> kanalNiva {}, mal {}, panL {}, panR {};
+    std::array<float, antalKanaler> kanalNiva {}, mal {}, panL {}, panR {}, blockTopp {};
+    int scopeRaknare = 0;
     std::array<int, antalKanaler> aktivtMonster {};
     int transponering = 0, kontrollRaknare = 0, huggHaller = -1;
     bool forstaBlocket = true;

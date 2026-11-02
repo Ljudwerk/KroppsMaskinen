@@ -228,6 +228,9 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         layout.add (std::make_unique<F> (pid (id::mod (n, "mangd")), r + namn ("mängd"), R (-1.0f, 1.0f), 0.0f));
     }
 
+    // Fas 3: Kassetten sist, så att äldre parameterindex (automation) står kvar.
+    layout.add (std::make_unique<C> (pid (id::fx ("kass", "kvalitet")), "Kassetten bandhastighet", juce::StringArray { "SP", "LP", "EP" }, 0));
+    layout.add (std::make_unique<F> (pid (id::fx ("kass", "slitage")), "Kassetten slitage", R (0.0f, 1.0f), 0.0f));
     return layout;
 }
 
@@ -252,7 +255,8 @@ public:
                  { "gr", "storlek" }, { "gr", "hallTid" }, { "gr", "ton" }, { "gr", "niva" },
                  { "eko", "tid" }, { "eko", "aterkoppling" }, { "eko", "ton" }, { "eko", "pingpong" }, { "eko", "lage" }, { "eko", "niva" },
                  { "svaj", "lage" }, { "svaj", "mangd" },
-                 { "klam", "troskel" }, { "klam", "kvot" }, { "klam", "attack" }, { "klam", "slapp" }, { "klam", "pump" }, { "klam", "efter" } })
+                 { "klam", "troskel" }, { "klam", "kvot" }, { "klam", "attack" }, { "klam", "slapp" }, { "klam", "pump" }, { "klam", "efter" },
+                 { "kass", "kvalitet" }, { "kass", "slitage" } })
             fx[fi++] = p (id::fx (e, v));
         for (int n = 0; n < 2; ++n)
         {
@@ -338,6 +342,7 @@ public:
         m.eko.pingPong = f (7) > 0.5f; m.eko.lage = (EkoLage) (int) f (8); m.eko.niva = f (9);
         m.svaj = { (int) f (10), f (11) };
         m.klam = { f (12), f (13), f (14), f (15), f (16), f (17) };
+        m.kassetten = { (Bandkvalitet) (int) f (18), f (19) };
 
         m.spanning = spanning->load();
         varvFaktorNu = varvFaktor ((Varv) (int) varvtal->load());
@@ -372,7 +377,7 @@ private:
     P spela, tempo, gung, grundton, master, folj, forskjutning, transponering, kit, kantslag, varvtal, varvLage, spanning;
     struct KanalP { P langd, monster, variant, drivetLage, drivetMangd, niva, tyst, solo, pan, sandA, sandB; };
     std::array<P, 10> hu {};
-    std::array<P, 18> fx {};
+    std::array<P, 20> fx {};
     struct LfoP { P form, hz, synk; };
     struct EnvP { P attack, fall, hall, slapp, utlosare; };
     struct KoppP { P kalla, mal, mangd; };

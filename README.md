@@ -2,7 +2,7 @@
 
 *Modell KM-87.* En groovebox för Electronic Body Music och New Beat. Instrument-plugin (VST3, AU, CLAP) och fristående app för macOS. Allt ljud är syntetiskt.
 
-**Status: fas 0–2 klara, grind 0–2 och stilprovet godkända. Nästa: fas 3, VHS-panelen.** Se [PLAN.md](PLAN.md) för hela planen.
+**Status: fas 0–3 klara och grind 0–3 godkända. Nästa: fas 4, fabriksbandet (1.0).** Se [PLAN.md](PLAN.md) för hela planen.
 
 Det här finns:
 
@@ -11,7 +11,7 @@ Det här finns:
 - **Stampverket:** tolv syntetiska ljud – bastrumma, två virvlar, handklapp, stängd och öppen hi-hat (den stängda tystar den öppna), cymbal, två tom, metall (städ), smäll (fabriksport) och kubjällra eller kantslag – i fyra kit: **Åttaåtta**, **Niononio**, **Digital** och **Fabrik**.
 - **Hugget:** stötar och leads, åtta röster. Sju lägen – **Orkesterstöt**, **Blåsstöt**, **Körstöt**, **Klockstöt**, **Synklead**, **Pulslead** och **FM-lead** – och ett **ackordminne** (moll, dur, kvint, oktav, moll 7, sus 4, moll 9), så att en enda rad i sekvensern ger fulla stötar.
 - **Drivet** på varje kanal: rör, overdrive eller bitkross, med automatisk nivåkompensation.
-- **Effekterna:** **Grindrummet** (gatad reverb: rummet stängs tvärt efter hålltiden), **Ekot** (synkat eko i BBD- eller bandläge, med ping-pong), **Svajet** (chorus i läge I, II och I+II) och **Klämman** (busskompressor där bastrumman kan få resten att pumpa). Grindrummet och Ekot matas från varje kanals sändningar.
+- **Effekterna:** **Grindrummet** (gatad reverb: rummet stängs tvärt efter hålltiden), **Ekot** (synkat eko i BBD- eller bandläge, med ping-pong), **Svajet** (chorus i läge I, II och I+II), **Klämman** (busskompressor där bastrumman kan få resten att pumpa) och **Kassetten** (bandet sist i kedjan: svaj, fladder, tappningar, brus och mättnad; bandhastigheten SP, LP eller EP tar bort mer diskant). Grindrummet och Ekot matas från varje kanals sändningar. Kassetten är helt av när slitaget är noll och bandet går i SP.
 - **Varvtalet:** New Beat-tricket – en 45-varvare spelad på 33 (eller 33 med pitchen uppe 8 %). *Musikaliskt* läge sänker tempo och tonhöjd och låter allt klinga längre; *Skivspelare* spelar hela maskinen långsammare, effekterna också. I en DAW följer tempot projektet och skivspelarläget blir musikaliskt.
 - **Spänningen:** en makrospak som drar allt mot mer energi – hårdare accenter, kortare filtersvep, mer drive, mer rum, mer pump.
 - **Modulationen:** två LFO:er (fria eller i takt, 4 takter – 1/16), två envelopes som startas av en vald kanal, modhjul, aftertouch och anslag, och sex kopplingar till filter, klang, pulsbredd, tonhöjd, Drivet, rummet, ekot och Spänningen.
@@ -19,36 +19,45 @@ Det här finns:
 - **Mönsterbanker:** 16 mönster per kanal, vart och ett med variant A och B. Varianten kan vara A, B eller A+B (växlar varannat varv). Byter du mönster medan sekvensern går tar det nya över på nästa takt.
 - **Mixern:** nivå, panorering, sändning till Grindrummet och Ekot, tyst och solo per kanal, och tyst per trumspår.
 - **Fabriksbandet:** *Init*, *Kolv 125* (grind 0), grind 1-looparna *EBM 128*, *Marsch 120* och *New Beat 112*, och hela maskinen i *Fabriksgolv 125*, *Paroll 132* och *Svart skiva 33* (145 BPM på 33 varv med pitchen uppe: 116 BPM).
-- **Ett grått gränssnitt** med standardrattar, bara för att kunna spela. VHS-panelen kommer i fas 3 – stilprovet finns redan (se nedan).
+- **VHS-panelen:** en svart hemelektroniklåda från 1987 med en tjock-TV i mitten och VHS-band ovanpå bilden. Skärmen visar vald kanal som en maskin i en vektorvärld (kolven, två kolvar, pressen, bilan), mixern som torn, effekterna som oscilloskop och modulationen som kurvor. Allt ritas i kod (`Source/ui/`), inklusive OSD-typsnittet och texturerna – inga bild- eller typsnittsfiler. Panelen kan visas i 60–160 % (MENY → Storlek, 85 % från början).
 
-![Panelen i fas 2, fliken Effekter](docs/panelen_fas2.png)
+![VHS-panelen, KANAL-vyn med Kolvbasen](docs/panelen_kanal.png)
 
-## Stilprovet för VHS-panelen
-
-Så här ska Kroppsmaskinen se ut från fas 3: en svart hemelektroniklåda från 1987 med en tjock-TV i mitten, och VHS-band ovanpå bilden. Allt ritas i kod (`Source/ui/stil/`), inklusive OSD-typsnittet och texturerna – inga bild- eller typsnittsfiler.
-
-![Stilprovet](docs/stilprov_vhs.png)
-
-Närbilder av rattar, stegknappar, displayer, typsnittet och skärmen med och utan bandlagret finns i `docs/stilprov_detaljer.png`.
+Fler vyer: `docs/panelen_sekvens.png`, `docs/panelen_stampverket.png`, `docs/panelen_mixer.png`, `docs/panelen_effekter.png` och `docs/panelen_modulation.png`. Det godkända stilprovet ligger kvar i `docs/stilprov_vhs.png` och `docs/stilprov_detaljer.png`.
 
 ## Spela
 
-Tryck **SPELA** i den fristående appen. Längst ned till höger under rutnätet visas samplingsfrekvensen, blockstorleken, det uppmätta tempot och hur snabbt ljudet behandlas jämfört med realtid (ska vara 1,00×). Raden blir röd om ljudkortet inte går i den takt det uppger – till exempel Bluetooth-lurar i samtalsläge (16 kHz), som får både tempo och tonhöjd att bli fel. Välj då 44,1 eller 48 kHz under *Options*, eller låt Macens ljudingång vara den inbyggda mikrofonen så att lurarna stannar i musikläge. I en DAW följer sekvensern DAW:ens transport. Flikarna **KOLVBASEN**, **KOLVBAS 2**, **STAMPVERKET** och **HUGGET** väljer vilken kanal som visas, **EFFEKTER** och **MODULATION** visar effekterna och modulationen; rutnätet visar kanalens valda mönster (Mönster i mixern) och variant A eller B.
+Tryck **SPELA** i bandverket överst (den fristående appen; i en DAW följer sekvensern DAW:ens transport).
 
-Stegrutnätet:
+| Del | Vad den gör |
+| --- | --- |
+| **Bandverket** | SPOLA (börjar om från takt 1 och nollar räkneverket), SPELA, STOPP och SPELA IN (stegskrivning, se nedan). **Räkneverket** visar speltiden. **Band** SP/LP/EP är Kassettens bandhastighet. **Tempo**: dra upp/ned (Skift = tiondelar), rulla, dubbelklicka för 125. **Varvtalet** 45/33/+8 % och **Skivspelare**. **Spänningen**: spaken. |
+| **Kanalväljaren** | Väljer kanal för KANAL- och SEKVENS-vyn, stegraden och klaviaturen. Högerklick tystar kanalen. Stapeln visar nivån. **Mönster**: dra eller rulla för mönster 1–16, klicka för att växla variant; **Variant** A, B eller A+B. |
+| **Bildskärmen** | Visar vald kanal eller vy. **Bandstyrka** Av / Lite / Mycket under skärmen; Kassettens slitage sliter också bilden. |
+| **Presets** | Numret och namnet (klicka på numret för listan), ◀ ▶, **SPARA** och **MENY** (presets, spara, bandstyrka, storlek och *Visa gränssnittets CPU*). Rör man ett reglage visar displayen namn och värde. VU-mätarna och mastern: **Nivå**, **Klämman** (tröskeln – medurs klämmer mer) och **Kassetten** (slitaget). |
+| **Vyerna** | **KANAL**: vald kanals ljud, Drivet och kanalens nivå, panorering och sändningar. I Stampverket väljer man trumma med de tolv knapparna (som på en TR-maskin); lysdioderna blinkar när trummorna slår. **SEKVENS**: hela mönstret för vald kanal och sida, Mönster, Variant, Längd, Gung, **Kopiera A→B** och **Rensa**. **MIXER**, **EFFEKTER**, **MODULATION**. |
+| **Stegraden** | Vald kanals mönster, sexton steg per sida. **I–IV** väljer sida (sidan följer spelhuvudet när mönstret är längre än 16 steg, utom en stund efter att man valt själv). **A/B** väljer vilken variant som ändras. I Stampverket ändras vald trumma. |
+| **Klaviaturen** | Spelar vald kanal (Stampverket på kanal 10 enligt GM-kartan nedan); ◀ ▶ flyttar en oktav. |
+
+Reglagen: dra upp/ned (Skift = fint), rulla, dubbelklicka för grundvärdet. Väljarna: klick = nästa, Skift-klick = förra, rulla, högerklick = lista.
+
+Stegraden och SEKVENS-vyn:
 
 | Var | Gör |
 | --- | --- |
 | Trummor, klick | av → slag → accent |
 | Trummor, Skift-klick | ratchet: 1, 2, 3 eller 4 slag inom steget |
 | Trummor, Alt-klick | chans: 100, 75, 50 eller 25 % |
-| Bas, klick | av → ton → accent |
+| Trummor, klick på namnet (SEKVENS) | väljer trumma för stegraden |
+| Bas, klick | av → ton → accent (i SEKVENS: klick på en annan rad flyttar tonen dit) |
 | Bas, dra upp/ned eller rulla | tonen, ±12 halvtoner från grundtonen |
 | Bas, högerklick | glid: tonen hålls och glider in i nästa |
 | Bas, Alt-klick | oktav: 0 → upp → ned |
-| Bas, Skift-klick | tonlängd: ¼, ½, ¾, 1, 1½, 2, 3 eller 4 steg (syns som stapelns bredd) |
-| I–IV | sidan som visas; **Följ** låter sidan följa uppspelningen |
-| A / B | vilken variant som visas och ändras; **Kopiera A→B** gör B till en kopia av A |
+| Bas, Skift-klick | tonlängd: ¼, ½, ¾, 1, 1½, 2, 3 eller 4 steg |
+
+**SPELA IN** (stegskrivning): när sekvensern står still skriver klaviaturen in en ton (eller ett trumslag) vid markören, som blinkar orange i stegraden och flyttas fram ett steg; klicka på ett steg för att flytta markören. Medan sekvensern går hamnar tonen i steget som spelas. Hårt anslag (nederkanten av tangenten) ger accent.
+
+Om ljudkortet inte går i den takt det uppger – till exempel Bluetooth-lurar i samtalsläge (16 kHz), som får både tempo och tonhöjd att bli fel – visar presetdisplayen en orange varning. Välj då 44,1 eller 48 kHz under *Options*.
 
 När sekvensern står still spelar keyboardet Kolvbasen (MIDI-kanal 2 spelar Kolvbas 2 och kanal 3 Hugget). Modhjulet (CC 1) och aftertouch går till modulationen. När den går flyttar en tangent alla tongångar (räknat från **Grundton**; Hugget spelar två oktaver över, plus sin **Oktav**). MIDI-kanal 10 spelar trummorna enligt GM-kartan:
 
@@ -93,7 +102,7 @@ cmake -B build -G Xcode \
 | `Kroppsmaskinen_All` | VST3, AU, CLAP och den fristående appen |
 | `Kroppsmaskinen_Standalone` | `Kroppsmaskinen.app` |
 | `KMRender` | Renderingstestet och lyssningsfilerna (se nedan) |
-| `KMSnapshot` | Ritar panelen till PNG: `KMSnapshot fil.png [skala] [flik 1–6] [preset]`; `--stilprov fil.png` och `--stilprov-detaljer fil.png` ritar VHS-stilprovet |
+| `KMSnapshot` | Ritar panelen till PNG: `KMSnapshot fil.png [skala] [vy 1–5] [kanal 1–4] [preset]` (skala 2 = Retina). `--panel-tid [skala] [sekunder]` mäter panelens kostnad, `--panel-parametrar` kontrollerar att alla parametrar nås, `--panel-klick` klickar på allt. `--skarm katalog` och `--skarm-tid` ritar och mäter bildskärmen för sig; `--stilprov fil.png` och `--stilprov-detaljer fil.png` ritar stilprovet |
 
 ### Installera i din DAW
 
@@ -111,11 +120,13 @@ cmake --build build --config Release --target KMRender
 ./build/KMRender_artefacts/Release/KMRender renders
 ```
 
-KMRender kontrollerar mönsterformatet (även inläsning av lägen från fas 0), alla 53 ljud för sig (Kolvbasen i båda filtren och med synk, Kolvbas 2, och tolv trummor i fyra kit), att Taktverket slår exakt på stegen, att ett nytt mönster tar över på nästa takt, tyst och solo, att Kolvbas 2 som följer låter exakt som Kolvbasen, att Drivet håller nivån, alla fabrikspresets, 40 slumpade ytterlägen, tempot genom JUCE:s AudioProcessorPlayer (samma väg som den fristående appen) i 44,1, 48 och 96 kHz med olika blockstorlekar, Huggets sju lägen, att Grindrummet stänger, att Ekot kommer i takt, att Klämman pumpar, att Varvtalet sänker tempo och tonhöjd lika mycket i båda lägena, att Spänningen håller nivån och att modulationen hörs. Den avslutar med felkod om något går fel, så CI blir rött.
+KMRender kontrollerar mönsterformatet (även inläsning av lägen från fas 0), alla 53 ljud för sig (Kolvbasen i båda filtren och med synk, Kolvbas 2, och tolv trummor i fyra kit), att Taktverket slår exakt på stegen, att ett nytt mönster tar över på nästa takt, tyst och solo, att Kolvbas 2 som följer låter exakt som Kolvbasen, att Drivet håller nivån, alla fabrikspresets, 40 slumpade ytterlägen, tempot genom JUCE:s AudioProcessorPlayer (samma väg som den fristående appen) i 44,1, 48 och 96 kHz med olika blockstorlekar, Huggets sju lägen, att Grindrummet stänger, att Ekot kommer i takt, att Klämman pumpar, att Varvtalet sänker tempo och tonhöjd lika mycket i båda lägena, att Spänningen håller nivån, att modulationen hörs och att Kassetten är helt av utan slitage men håller nivån med fullt slitage. Den avslutar med felkod om något går fel, så CI blir rött.
 
 **Grind 0 (godkänd):** `renders/grind0_kolv125.wav` (och `_bas`, `_trummor`).
 
 **Grind 2:** ett helt spår på 3–4 minuter i Reaper, bara med Kroppsmaskinen och utan externa effekter. *Fabriksgolv 125*, *Paroll 132* och *Svart skiva 33* är startpunkter; mönster byts med automation på kanalernas **Mönster** (det nya mönstret tar över på nästa takt). Huggets lägen finns som `renders/hugget_*.wav`.
+
+**Grind 3 (godkänd):** VHS-panelen. Kraven: under CPU-målet (< 3 % av en kärna på en M1 i 100 %), alla parametrar nåbara och grind 2-låten byggbar utan DAW:ens generiska vy. Att mäta på Macen: MENY → *Visa gränssnittets CPU* visar meddelandetrådens processortid (medel över två sekunder) i presetdisplayen, med sekvensern igång. `KMSnapshot --panel-parametrar` ska ge "0 saknas" och `--panel-klick` gå igenom utan fel (båda körs i CI).
 
 **Grind 1 (godkänd):** tre loopar med bara bas och trummor, åtta takter var: `renders/grind1_ebm_128.wav`, `grind1_marsch_120.wav` och `grind1_new_beat_112.wav`. Varje kit finns som `renders/kit_*.wav` (alla tolv ljud efter varandra). Stilprovet granskas i `docs/stilprov_vhs.png`.
 
@@ -151,7 +162,7 @@ Reaper känner igen pluginet på ett tal och ett GUID. Skriptet läser talet ur 
 | `Source/dsp/Kolvbasen.h` | Sekvensbasen (både Kolvbasen och Kolvbas 2): oscillatorer, synk, ZDF-ladder och 12 dB-filter, envelopes, accent, glid | Utgår från `Basmalen.h` |
 | `Source/dsp/Stampverket.h` | Trummorna: recepten för tolv ljud i fyra kit, trumrösten och spårens fasta ordning | Ny |
 | `Source/dsp/Hugget.h` | Stötar och leads: sju lägen, åtta röster, ackordminnet | Ny |
-| `Source/dsp/Effekter.h` | Grindrummet, Ekot, Svajet och Klämman | Ny |
+| `Source/dsp/Effekter.h` | Grindrummet, Ekot, Svajet, Klämman och Kassetten | Ny |
 | `Source/dsp/Modulation.h` | LFO:er, envelopes och kopplingarna | Utgår från `Modulation.h` |
 | `Source/dsp/Drivet.h` | Distorsionen per kanal: rör, overdrive (2x översamplat), bitkross, nivåkompensation | Utgår från `KrangDistortion.h` |
 | `Source/dsp/Motor.h` | Kopplar ihop Taktverket, kanalerna, mönsterbankerna, mixern, effekterna, Spänningen, Varvtalet (musikaliskt), modulationen och toppbegränsaren | Ny |
@@ -160,15 +171,15 @@ Reaper känner igen pluginet på ett tal och ett GUID. Skriptet läser talet ur 
 | `Source/Parameters.h` | Parameterträdet – `km_<kanal>_<vad>` | Ny |
 | `Source/presets/` | Fabriksbandet och PresetManager (`.km87`-filer, formatversion 2) | Utgår från KrangBox |
 | `Source/ui/ValueFormat.h` | Värdeformatet för rattarna | Kopia från KrangBox |
-| `Source/ui/StegRutnat.h` | Stegrutnätet | Ny |
 | `Source/ui/stil/` | VHS-panelens ritverktyg: palett, texturer, linjeskrift, OSD-typsnitt, hårdvara, skärm, bandlager och stilprovet | Ny |
+| `Source/ui/vhs/` | VHS-panelen: `Panel.h` (sektionerna, vyerna, den cachade bakgrunden och timern), `Reglage.h` (ratt, knapp, väljare, spak, sjusegment), `Stegrad.h`, `Sekvens.h`, `Klaviatur.h`, `Bildskarm.h` och `Scener.h` (den animerade skärmen och bandlagret), `SkarmData.h` och `PanelLage.h` | Ny |
 | `Source/PluginProcessor.*` | Processorn: parametrar, mönster, presets och Varvtalets skivspelarläge (varispeed) | Ny |
-| `Source/PluginEditor.*` | Det gråa gränssnittet för fas 0–2 | Ny |
+| `Source/PluginEditor.*` | Editorn: VHS-panelen i vald storlek (60–160 %) | Ny |
 | `tools/KMRender.cpp` | Renderingstest och lyssningsfiler; `--state`, `--parametrar` och `--projekt` för Reaper-skriptet | Ny |
 | `tools/reaper/gor_reaper_projekt.py` | Bygger testlåten som Reaper-projekt (och JSON för `KMRender --projekt`) | Utgår från KrangBox |
 | `Reaper/` | Testlåten: `Fabriksgolv.RPP` och `Fabriksgolv.json` | Ny |
-| `tools/KMSnapshot.cpp` | Ritar panelen och stilprovet till PNG | Ny |
-| `.github/workflows/` | macOS-bygge, renderingstest, panelbild och pluginval | Utgår från KrangBox |
+| `tools/KMSnapshot.cpp`, `tools/SkarmProv.h` | Ritar panelen, skärmen och stilprovet till PNG; mäter panelen och skärmen; kontrollerar parametrarna och klickar igenom panelen | Ny |
+| `.github/workflows/` | macOS-bygge, renderingstest, panelbilder och panelkontroller, pluginval | Utgår från KrangBox |
 
 Parameter-ID:n bytte namn mellan fas 0 och fas 1 (till `km_<kanal>_<vad>`). Från version 1.0 får de aldrig ändras igen.
 

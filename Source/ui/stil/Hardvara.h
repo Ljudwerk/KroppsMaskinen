@@ -569,23 +569,23 @@ inline void ritaFader (juce::Graphics& g, Rectangle<float> r, float varde)
 // VU-mätare
 
 // Analog VU-mätare med visare, bakgrundsbelyst skala (svagt bärnsten) och glas. dB −20…+3.
-inline void ritaVU (juce::Graphics& g, Rectangle<float> r, float dB, const juce::String& etikett)
+// 'del' ritar en del i taget, så att panelen kan spara tavlan och glaset som bilder:
+// 0 allt, 1 tavlan (allt under visaren), 2 bara visaren, 3 täckplåten och glaset.
+inline void ritaVU (juce::Graphics& g, Rectangle<float> r, float dB, const juce::String& etikett, int del = 0)
 {
-    g.setColour (juce::Colours::black);
-    g.fillRoundedRectangle (r.expanded (2.0f), 3.0f);
-    g.setColour (juce::Colours::white.withAlpha (0.08f));
-    g.drawRoundedRectangle (r.expanded (2.5f).translated (0.0f, 0.6f), 3.5f, 0.6f);
+    const bool tavla = del == 0 || del == 1, visare = del == 0 || del == 2, glas = del == 0 || del == 3;
+    if (tavla)
+    {
+        g.setColour (juce::Colours::black);
+        g.fillRoundedRectangle (r.expanded (2.0f), 3.0f);
+        g.setColour (juce::Colours::white.withAlpha (0.08f));
+        g.drawRoundedRectangle (r.expanded (2.5f).translated (0.0f, 0.6f), 3.5f, 0.6f);
+    }
     const auto yta = r.reduced (3.0f);
     juce::Graphics::ScopedSaveState s (g);
     g.reduceClipRegion (yta.toNearestInt());
 
     const Point<float> nav (yta.getCentreX(), yta.getBottom() + yta.getHeight() * 0.38f);
-    {
-        juce::ColourGradient ljus (Colour (0xff4a2a10), nav.translated (0.0f, -yta.getHeight() * 0.9f),
-                                   Colour (0xff0e0806), nav.translated (yta.getWidth() * 0.75f, -yta.getHeight() * 0.9f), true);
-        g.setGradientFill (ljus);
-        g.fillRect (yta);
-    }
     const float R = yta.getHeight() * 1.02f;
     auto vinkel = [] (float d)
     {
@@ -594,6 +594,14 @@ inline void ritaVU (juce::Graphics& g, Rectangle<float> r, float dB, const juce:
         return juce::degreesToRadians (-46.0f + 92.0f * f);
     };
     auto polar = [nav] (float a, float radie) { return nav + Point<float> (std::sin (a), -std::cos (a)) * radie; };
+    if (tavla)
+    {
+    {
+        juce::ColourGradient ljus (Colour (0xff4a2a10), nav.translated (0.0f, -yta.getHeight() * 0.9f),
+                                   Colour (0xff0e0806), nav.translated (yta.getWidth() * 0.75f, -yta.getHeight() * 0.9f), true);
+        g.setGradientFill (ljus);
+        g.fillRect (yta);
+    }
 
     // Skalbågen: tunn silverbåge, tjock röd över 0 VU.
     {
@@ -627,12 +635,19 @@ inline void ritaVU (juce::Graphics& g, Rectangle<float> r, float dB, const juce:
     g.setColour (farg::lysRod.withAlpha (0.9f));
     linjeskrift::rita (g, "+", Rectangle<float> (10.0f, 8.0f).withCentre (polar (vinkel (3.0f) + 0.05f, R * 0.75f)), { 5.0f, 0.9f, 1.0f, 1.0f });
 
+    }
+
     // Visaren med skugga.
+    if (visare)
+    {
     const float a = vinkel (dB);
     g.setColour (juce::Colours::black.withAlpha (0.45f));
     g.drawLine ({ polar (a, R * 0.3f).translated (2.0f, 2.5f), polar (a, R * 0.99f).translated (2.0f, 2.5f) }, 1.4f);
     g.setColour (Colour (0xfff4efe6));
     g.drawLine ({ polar (a, R * 0.3f), polar (a, R * 0.99f) }, 1.1f);
+
+    }
+    if (! glas) return;
 
     // Svart täckplåt över navet.
     {

@@ -33,6 +33,7 @@
 //   15. Varvtalet: 33 varv sänker tempo och tonhöjd med 135/100, i båda lägena.
 //   16. Spänningen: full spänning håller nivån inom ±4 dB och toppen under 0 dBFS.
 //   17. Modulationen: en LFO på Kolvbasens filter ändrar klangen.
+//   18. Kassetten: slitage 0 på SP ändrar ingenting; fullt slitage på EP håller nivån och toppen.
 //
 // Grind 0-loopen hamnar i renders/grind0_kolv125.wav, grind 1-looparna i renders/grind1_*.wav.
 //
@@ -726,6 +727,38 @@ void testaModulationen()
     const double utan = hf (0.0f), med = hf (1.0f);
     kontroll (med > utan * 1.2, juce::String::fromUTF8 ("LFO på filtret: diskantandel ×") + juce::String (med / utan, 2));
 }
+void testaKassetten()
+{
+    std::cout << "18. Kassetten\n";
+    using namespace km::params;
+    auto spela = [] (float kvalitet, float slitage)
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Fabriksgolv 125");
+        satt (*p, id::fx ("kass", "kvalitet"), kvalitet);
+        satt (*p, id::fx ("kass", "slitage"), slitage);
+        satt (*p, id::spela, 1.0f);
+        return rendera (*p, 3.0);
+    };
+    const auto ren = spela (0.0f, 0.0f);
+    auto referens = nyProcessor();
+    referens->presets.loadByName ("Fabriksgolv 125");
+    satt (*referens, id::spela, 1.0f);
+    const auto ref = rendera (*referens, 3.0);
+    double skillnad = 0.0;
+    for (int c = 0; c < ref.getNumChannels(); ++c)
+        for (int i = 0; i < ref.getNumSamples(); ++i)
+            skillnad = std::max (skillnad, (double) std::abs (ref.getSample (c, i) - ren.getSample (c, i)));
+    kontroll (skillnad == 0.0, "SP utan slitage: ingen skillnad (" + juce::String (skillnad, 6) + ")");
+
+    for (float kv : { 1.0f, 2.0f })
+    {
+        const auto ut = mat (spela (kv, 1.0f));
+        const float d = dB (ut.rms) - dB (mat (ref).rms);
+        kontroll (ut.finit && ut.topp <= 1.0f && std::abs (d) <= 3.0f,
+                  juce::String (kv == 1.0f ? "LP" : "EP") + juce::String::fromUTF8 (", fullt slitage: ") + (d >= 0 ? "+" : "") + juce::String (d, 1) + " dB, topp " + juce::String (ut.topp, 3));
+    }
+}
 } // namespace
 
 // --state: läget efter preset, parametrar och mönster.
@@ -898,6 +931,7 @@ int main (int argc, char* argv[])
     testaVarvtalet();
     testaSpanningen();
     testaModulationen();
+    testaKassetten();
 
     std::cout << (fel == 0 ? "\nAlla test gick igenom.\n" : "\n" + std::to_string (fel) + " test misslyckades.\n");
     std::cout << "Filerna ligger i " << katalog.getFullPathName() << "\n";

@@ -47,6 +47,7 @@ void KroppsmaskinenProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         }
 
     motor.setParams (reader.read());
+    if (spolaBegaran.exchange (false)) motor.spola();
     keyboardState.processNextMidiBuffer (midi, 0, n, true);
 
     if (scratchRight.getNumSamples() < n) scratchRight.setSize (1, n, false, false, true); // nödfall: för stort block
@@ -68,6 +69,13 @@ void KroppsmaskinenProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     const float peak = buffer.getMagnitude (0, n);
     float prev = outputPeak.load();
     while (peak > prev && ! outputPeak.compare_exchange_weak (prev, peak)) {}
+    for (int c = 0; c < 2; ++c)
+    {
+        const float t = buffer.getMagnitude (juce::jmin (c, buffer.getNumChannels() - 1), 0, n);
+        float forra = utTopp[(size_t) c].load();
+        while (t > forra && ! utTopp[(size_t) c].compare_exchange_weak (forra, t)) {}
+    }
+    if (motor.ppqNu.load (std::memory_order_relaxed) >= 0.0) speltidSampel.fetch_add (n, std::memory_order_relaxed);
 }
 
 void KroppsmaskinenProcessor::skivspelare (float* left, float* right, int n, const juce::MidiBuffer& midi,
@@ -124,6 +132,8 @@ void KroppsmaskinenProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto copy = state.copyState();
     km::PresetManager::writePatterns (copy, banker);
+    copy.removeChild (copy.getChildWithName (panelLage.getType()), nullptr);
+    copy.appendChild (panelLage.createCopy(), nullptr);
     if (auto xml = copy.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -134,6 +144,12 @@ void KroppsmaskinenProcessor::setStateInformation (const void* data, int sizeInB
         if (xml->hasTagName (state.state.getType()))
         {
             auto tree = juce::ValueTree::fromXml (*xml);
+            const auto panel = tree.getChildWithName (panelLage.getType());
+            if (panel.isValid())
+            {
+                panelLage.copyPropertiesFrom (panel, nullptr);
+                tree.removeChild (panel, nullptr);
+            }
             if (km::PresetManager::readPatterns (tree, banker))
                 state.replaceState (tree);
         }

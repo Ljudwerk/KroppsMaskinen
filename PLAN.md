@@ -2,7 +2,7 @@
 
 *Modell KM-87. En groovebox för Electronic Body Music och New Beat, byggd som om den kom ur en svart hemelektroniklåda från 1987 och bara gick att se på genom en VHS-skärm.*
 
-**Status:** fas 0–2 klara och grind 0, 1 och 2 godkända, liksom stilprovet för VHS-panelen och loggan (2 november 2026). Nästa steg: fas 3, VHS-panelen. Se README.md.
+**Status:** Fas 0–3 klara och grind 0–3 godkända. Nästa steg: fas 4, fabriksbandet (1.0). Se README.md. Stilprovet och loggan godkändes i fas 1 (2 november 2026).
 
 Instrument-plugin (VST3, AU, CLAP) och fristående app för macOS, på samma stack som KrangBox. Allt ljud är syntetiskt. Allt i gränssnittet är på svenska.
 
@@ -239,6 +239,10 @@ Varje fas slutar med en **grind**: ett lyssnings- eller granskningstest som mås
 - Hela gränssnittet enligt stilprovet: alla vyer, skalning, animering, Bandstyrka.
 - Kassetten på mastern (ljudet och bilden får gärna dela "slitaget").
 - Prestandamätning av gränssnittet.
+
+*Klar i kod. Panelen ligger i `Source/ui/vhs/` och bygger på stilprovets ritverktyg. Avvikelser från planen: Kassetten ligger i `Source/dsp/Effekter.h` och är helt av vid slitage 0 och SP; dess två parametrar ligger sist i parameterlistan, så att Reaper-projektets automation står kvar. Bildskärmens bandlager räknas högst i designupplösning (640 × 304, ungefär en VHS-bild) och sträcks ut på Retina och vid förstoring; OSD-texten ovanpå är skarp. Stegradens sida följer spelhuvudet av sig själv (utom fyra sekunder efter att man valt sida) i stället för en Följ-knapp. Stampverkets trummor väljs med tolv knappar som på en TR-maskin, och stegraden redigerar vald trumma. Kanalväljarens mönsterdisplay visar variant A, B eller A+B; kedjorna kommer i fas 4. SPELA IN är stegskrivning från klaviaturen. Prestanda mäts med `KMSnapshot --panel-tid` och i pluginet med MENY → Visa gränssnittets CPU (meddelandetrådens processortid). I molnmaskinen (Xeon, JUCE:s mjukvarurenderare) kostar panelen omkring 8 % av en kärna i 100 % med sekvensern igång, nästan allt i bildskärmen (≈ 2 ms per bild, 25 bilder/s); på Macen ritar CoreGraphics, och siffran för grinden mäts där.*
+
+*Grind 3 godkänd (2 november 2026).*
 
 **Grind 3:** Gränssnittet under CPU-målet, alla parametrar nåbara, hela grind 2-spåret går att bygga utan att öppna DAW:ens generiska vy.
 

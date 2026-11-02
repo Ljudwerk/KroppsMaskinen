@@ -59,6 +59,28 @@ public:
     int monsterNu (km::Kanal k) const { return motor.spelarMonster[(size_t) k].load (std::memory_order_relaxed); }
     float klamReduktionDb() const { return motor.getKlamReduktionDb(); }
 
+    // VHS-panelen: slag, nivåer, oscilloskop, modulation och räkneverket.
+    std::array<std::atomic<float>, 2> utTopp {};                     // vänster/höger, byts mot 0 när panelen läser
+    uint32_t kanalSlag (km::Kanal k) const { return motor.kanalSlag[(size_t) k].load (std::memory_order_relaxed); }
+    uint32_t trumSlag (int spar) const { return motor.trumSlag[(size_t) spar].load (std::memory_order_relaxed); }
+    float kanalTopp (km::Kanal k) { return motor.kanalTopp[(size_t) k].exchange (0.0f, std::memory_order_relaxed); }
+    double ppqNu() const { return motor.ppqNu.load (std::memory_order_relaxed); }
+    float modKalla (km::ModKalla k) const { return motor.getModulation().kallVarde (k); }
+    // Oscilloskopet: de senaste n värdena, äldst först.
+    void lasScope (float* ut, int n) const
+    {
+        const int pos = motor.scopePos.load (std::memory_order_relaxed);
+        const int L = km::Motor::scopeLangd;
+        for (int i = 0; i < n; ++i)
+            ut[i] = motor.scope[(size_t) ((pos - n + i + 2 * L) % L)].load (std::memory_order_relaxed);
+    }
+    // Räkneverket: speltid i sekunder (räknas när sekvensern går), nollställs av SPOLA.
+    double speltid() const { const double sr = forberedd.load(); return sr > 0.0 ? (double) speltidSampel.load() / sr : 0.0; }
+    void spola() { spolaBegaran.store (true); speltidSampel.store (0); }
+
+    // Panelens egna inställningar (bandstyrka, skala): sparas i läget men inte i presets.
+    juce::ValueTree panelLage { "Panel" };
+
     // Diagnostik för gränssnittet: samplingsfrekvensen motorn förberetts med, senaste blockstorleken,
     // antal behandlade sampel och antal spelade sextondelar. Jämförs med väggklockan i gränssnittet.
     std::atomic<double> forberedd { 0.0 };
@@ -70,6 +92,8 @@ private:
     km::params::Reader reader { state };
     km::Motor motor;
     juce::AudioBuffer<float> scratchRight;
+    std::atomic<bool> spolaBegaran { false };
+    std::atomic<juce::int64> speltidSampel { 0 };
 
     // Varvtalet i skivspelarläge.
     void skivspelare (float* left, float* right, int n, const juce::MidiBuffer& midi, const km::Transport& transport, double f);

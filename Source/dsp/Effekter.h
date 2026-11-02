@@ -1,7 +1,8 @@
-// Effekterna: Grindrummet (gatad reverb), Ekot (synkat eko), Svajet (chorus) och Klämman (busskompressor).
+// Effekterna: Grindrummet (gatad reverb), Ekot (synkat eko), Svajet (chorus), Klämman (busskompressor)
+// och Kassetten (VHS-slitage på hela mixen).
 //
 // Grindrummet och Ekot matas från kanalernas sändningar A och B och blandas tillbaka i mastern.
-// Svajet och Klämman sitter på mastern, i den ordningen. Klämman kan pressas av bastrumman (sidokedja),
+// Svajet, Klämman och Kassetten sitter på mastern, i den ordningen. Klämman kan pressas av bastrumman (sidokedja),
 // så att resten av maskinen pumpar i takt.
 //
 // Allt räknas sample för sample, i stereo.
@@ -298,6 +299,102 @@ private:
     KlamParams params;
     float env = 0.0f, pumpEnv = 0.0f, reduktionDb = 0.0f;
     float attackKoef = 0.01f, slappKoef = 0.001f, pumpSlapp = 0.001f;
+};
+
+// ---------------------------------------------------------------------------------------------
+// Kassetten: masterbandet. Hela mixen spelas in på ett slitet VHS-band och spelas upp igen – wow och
+// flutter, tappningar, bandbrus, diskantförlust och mättnad. SP, LP och EP är bandhastigheten: ju längre
+// speltid, desto mindre diskant och mer brus. Med slitaget på noll går ljudet rakt igenom.
+
+enum class Bandkvalitet { SP = 0, LP, EP };
+
+struct KassettParams
+{
+    Bandkvalitet kvalitet = Bandkvalitet::SP;
+    float slitage = 0.0f;   // 0..1
+};
+
+class Kassetten
+{
+public:
+    void prepare (double s)
+    {
+        sr = s;
+        for (auto& l : linjer) l.prepare ((int) (sr * 0.02));
+        envKoef = tidskonstant (0.05, sr);
+        reset();
+    }
+
+    void reset()
+    {
+        for (auto& l : linjer) l.reset();
+        lp1.fill (0.0f); lp2.fill (0.0f); hpBrus = 0.0f;
+        wowFas = flutterFas = 0.0; drift = driftMal = 0.0f; driftRaknare = 0;
+        tappKvar = 0; tappNiva = 1.0f; env = 0.0f;
+    }
+
+    void setParams (const KassettParams& p) { params = p; }
+
+    // Hur slitet bandet låter just nu, 0..1 – bildskärmen visar samma slitage.
+    float getSlitage() const { return params.slitage; }
+
+    void tick (float& l, float& r)
+    {
+        const float s = std::clamp (params.slitage, 0.0f, 1.0f);
+        linjer[0].skriv (l);
+        linjer[1].skriv (r);
+        if (s <= 0.0001f && params.kvalitet == Bandkvalitet::SP) return;
+
+        // --- Wow (långsam), flutter (snabb) och slumpdrift i bandets fart.
+        wowFas += 0.55 / sr; if (wowFas >= 1.0) wowFas -= 1.0;
+        flutterFas += 7.3 / sr; if (flutterFas >= 1.0) flutterFas -= 1.0;
+        if (--driftRaknare <= 0) { driftRaknare = (int) (sr * 0.25); driftMal = slump.bipolar(); }
+        drift += (driftMal - drift) * 0.00005f;
+        const double ms = 3.0 + s * (1.2 * std::sin (twoPi * wowFas) + 0.25 * std::sin (twoPi * flutterFas) + 0.6 * drift);
+        const double d = ms * 0.001 * sr;
+        float a = linjer[0].las (d), b = linjer[1].las (d);
+
+        // --- Diskantförlust: SP, LP, EP och slitaget sänker brytfrekvensen (två poler).
+        static constexpr float bas[] = { 16000.0f, 11000.0f, 7000.0f };
+        const float fc = bas[(size_t) params.kvalitet] * (1.0f - 0.55f * s);
+        const float k = 1.0f - std::exp (-2.0f * (float) pi * fc / (float) sr);
+        lp1[0] += (a - lp1[0]) * k; lp2[0] += (lp1[0] - lp2[0]) * k;
+        lp1[1] += (b - lp1[1]) * k; lp2[1] += (lp1[1] - lp2[1]) * k;
+        a = lp2[0]; b = lp2[1];
+
+        // --- Tappningar: korta hål där bandet släpper huvudet.
+        if (tappKvar > 0) { --tappKvar; tappNiva += (0.15f - tappNiva) * 0.01f; }
+        else
+        {
+            tappNiva += (1.0f - tappNiva) * 0.005f;
+            if (slump.unipolar() < s * s * 1.5f / (float) sr)   // ungefär 1,5 per sekund vid fullt slitage
+                tappKvar = (int) (sr * (0.02 + 0.06 * slump.unipolar()));
+        }
+        a *= tappNiva; b *= tappNiva;
+
+        // --- Brus: bandets sus, starkare i LP och EP; följer signalen lite, som en brusgrind.
+        const float in = std::max (std::abs (a), std::abs (b));
+        env += (in - env) * envKoef;
+        static constexpr float brusBas[] = { 0.0015f, 0.0025f, 0.004f };
+        const float raBrus = slump.bipolar();
+        hpBrus += (raBrus - hpBrus) * 0.3f;
+        const float brus = (raBrus - hpBrus) * brusBas[(size_t) params.kvalitet] * (0.3f + 2.5f * s) * (0.35f + 0.65f * std::min (1.0f, env * 4.0f));
+
+        // --- Mättnad: bandet tar emot mjukt.
+        // Mättnaden och det tappade diskantet sänker nivån; en lätt efterförstärkning tar igen det.
+        const float drive = 1.0f + 1.5f * s, efter = (1.0f + 0.4f * s) / drive;
+        l = mjukKlipp (a * drive) * efter + brus;
+        r = mjukKlipp (b * drive) * efter + brus * 0.9f;
+    }
+
+private:
+    double sr = 48000.0, wowFas = 0.0, flutterFas = 0.0;
+    KassettParams params;
+    std::array<Fordrojning, 2> linjer;
+    std::array<float, 2> lp1 {}, lp2 {};
+    float hpBrus = 0.0f, drift = 0.0f, driftMal = 0.0f, tappNiva = 1.0f, env = 0.0f, envKoef = 0.001f;
+    int driftRaknare = 0, tappKvar = 0;
+    Slump slump { 0x4b415353u };
 };
 
 } // namespace km
