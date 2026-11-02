@@ -1,0 +1,56 @@
+name: Bygg macOS
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache för beroenden
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: deps-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Konfigurera
+        run: cmake -B build -G Xcode
+
+      - name: Bygg (universal, Release)
+        run: cmake --build build --config Release --target Kroppsmaskinen_All KMRender KMSnapshot -- -quiet
+
+      - name: Renderingstest (mönster, NaN, topp, DC, tystnad, takt)
+        run: ./build/KMRender_artefacts/Release/KMRender renders
+
+      - name: Rita panelen
+        run: ./build/KMSnapshot_artefacts/Release/KMSnapshot renders/panelen.png
+
+      - name: Hämta pluginval
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pluginval.zip
+
+      - name: Validera VST3 och AU
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R build/Kroppsmaskinen_artefacts/Release/AU/Kroppsmaskinen.component ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 5 --skip-gui-tests --validate-in-process \
+            --validate build/Kroppsmaskinen_artefacts/Release/VST3/Kroppsmaskinen.vst3
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 5 --skip-gui-tests --validate-in-process \
+            --validate ~/Library/Audio/Plug-Ins/Components/Kroppsmaskinen.component
+
+      - name: Spara byggen och renderingar
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kroppsmaskinen-macOS
+          path: |
+            build/Kroppsmaskinen_artefacts/Release/VST3
+            build/Kroppsmaskinen_artefacts/Release/AU
+            build/Kroppsmaskinen_artefacts/Release/CLAP
+            build/Kroppsmaskinen_artefacts/Release/Standalone
+            renders

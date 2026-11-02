@@ -1,0 +1,9 @@
+build/
+local.sh
+real.sh
+build-*/
+renders/
+.DS_Store
+*.xcodeproj
+.vscode/
+.idea/
