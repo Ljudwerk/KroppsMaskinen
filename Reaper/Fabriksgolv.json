@@ -1,0 +1,262 @@
+{
+ "titel": "Fabriksgolv – grind 2",
+ "preset": "Fabriksgolv 125",
+ "tempo": 125,
+ "langdSlag": 448.0,
+ "monster": [
+  "monster:sv:2A=2000100010001000/0000100000001000/0000000000000000/0000100000001000/1121112111211121/0000000000100000",
+  "monster:sv:2B=2000100010001010/000010000000102{r1}2/0000000000001000/0000100000001000/1121112111211121/0000000000100010",
+  "monster:sv:3A=0000000000000000/0000000000000000/0000000000000000/0000000000000000/1010101010101010/0000000000000000/0000000000000000/0000000000000000/0000000000000000/1000000010000000",
+  "monster:sv:4A=2000100010001000/0000000000000000/0000000000000000/0000000000000000/0010001000100010",
+  "monster:sv:3B=0000000000000000/0000000000000000/0000000000000000/0000000000000000/1010101010101010/0000000000000000/0000000000000000/0000000000000000/0000000000000000/1000000010000000",
+  "monster:sv:4B=2000100010001000/0000000000000000/0000000000000000/0000000000000000/0010001000100010",
+  "monster:kb:2A=0a 0 0u 0 0a 0 0u 0 3a 3 3u 3 -2a -2 -2u 0~",
+  "monster:kb:3A=0a/5 . . . . . . . -2a/5 . . . . . . .",
+  "monster:hu:2A=0a/1 . . 0/0 . . 0a/1 . . . 3a/1 . . . -2a/1 ."
+ ],
+ "automation": [
+  {
+   "param": "km_hu_monster",
+   "punkter": [
+    [
+     0.0,
+     1
+    ],
+    [
+     127.75,
+     2
+    ],
+    [
+     191.75,
+     2
+    ]
+   ]
+  },
+  {
+   "param": "km_hu_tyst",
+   "punkter": [
+    [
+     0.0,
+     1
+    ],
+    [
+     64.0,
+     0
+    ],
+    [
+     160.0,
+     1
+    ],
+    [
+     192.0,
+     0
+    ],
+    [
+     288.0,
+     1
+    ],
+    [
+     320.0,
+     0
+    ],
+    [
+     384.0,
+     1
+    ]
+   ]
+  },
+  {
+   "param": "km_kb2_tyst",
+   "punkter": [
+    [
+     0.0,
+     1
+    ],
+    [
+     64.0,
+     0
+    ],
+    [
+     160.0,
+     1
+    ],
+    [
+     192.0,
+     0
+    ],
+    [
+     400.0,
+     1
+    ]
+   ]
+  },
+  {
+   "param": "km_kb_monster",
+   "punkter": [
+    [
+     0.0,
+     1
+    ],
+    [
+     127.75,
+     2
+    ],
+    [
+     159.75,
+     3
+    ],
+    [
+     191.75,
+     2
+    ],
+    [
+     287.75,
+     1
+    ],
+    [
+     319.75,
+     2
+    ]
+   ]
+  },
+  {
+   "param": "km_kb_tyst",
+   "punkter": [
+    [
+     0.0,
+     1
+    ],
+    [
+     32.0,
+     0
+    ],
+    [
+     416.0,
+     1
+    ]
+   ]
+  },
+  {
+   "param": "km_spanning",
+   "punkter": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     128.0,
+     0.3
+    ],
+    [
+     160.0,
+     0.0
+    ],
+    [
+     164.0,
+     0.1
+    ],
+    [
+     168.0,
+     0.2
+    ],
+    [
+     172.0,
+     0.3
+    ],
+    [
+     176.0,
+     0.4
+    ],
+    [
+     180.0,
+     0.5
+    ],
+    [
+     184.0,
+     0.6
+    ],
+    [
+     188.0,
+     0.7
+    ],
+    [
+     192.0,
+     0.5
+    ],
+    [
+     288.0,
+     0.2
+    ],
+    [
+     320.0,
+     0.7
+    ],
+    [
+     384.0,
+     0.3
+    ]
+   ]
+  },
+  {
+   "param": "km_sv_monster",
+   "punkter": [
+    [
+     0.0,
+     4
+    ],
+    [
+     31.75,
+     1
+    ],
+    [
+     159.75,
+     3
+    ],
+    [
+     191.75,
+     2
+    ],
+    [
+     287.75,
+     1
+    ],
+    [
+     319.75,
+     2
+    ],
+    [
+     415.75,
+     4
+    ]
+   ]
+  },
+  {
+   "param": "km_sv_tyst",
+   "punkter": [
+    [
+     0.0,
+     0
+    ],
+    [
+     444.0,
+     1
+    ]
+   ]
+  }
+ ],
+ "noter": [
+  [
+   223.75,
+   0.2,
+   38,
+   0.8
+  ],
+  [
+   255.75,
+   0.2,
+   33,
+   0.8
+  ]
+ ],
+ "state": "<Kroppsmaskinen formatVersion=\"2\" presetName=\"Fabriksgolv 125\"><PARAM id=\"km_eko_aterkoppling\" value=\"0.3499999940395355\"/><PARAM id=\"km_eko_lage\" value=\"0.0\"/><PARAM id=\"km_eko_niva\" value=\"0.5\"/><PARAM id=\"km_eko_pingpong\" value=\"1.0\"/><PARAM id=\"km_eko_tid\" value=\"2.0\"/><PARAM id=\"km_eko_ton\" value=\"0.5\"/><PARAM id=\"km_gr_hallTid\" value=\"0.1800000071525574\"/><PARAM id=\"km_gr_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_gr_storlek\" value=\"0.6499999761581421\"/><PARAM id=\"km_gr_ton\" value=\"0.6000000238418579\"/><PARAM id=\"km_grundton\" value=\"33.0\"/><PARAM id=\"km_gung\" value=\"0.0\"/><PARAM id=\"km_hu_ackord\" value=\"1.0\"/><PARAM id=\"km_hu_attack\" value=\"0.001999999396502972\"/><PARAM id=\"km_hu_bredd\" value=\"0.5\"/><PARAM id=\"km_hu_drivetLage\" value=\"0.0\"/><PARAM id=\"km_hu_drivetMangd\" value=\"0.300000011920929\"/><PARAM id=\"km_hu_fall\" value=\"0.4000000059604645\"/><PARAM id=\"km_hu_hall\" value=\"0.0\"/><PARAM id=\"km_hu_klang\" value=\"0.550000011920929\"/><PARAM id=\"km_hu_lage\" value=\"0.0\"/><PARAM id=\"km_hu_langd\" value=\"16.0\"/><PARAM id=\"km_hu_monster\" value=\"1.0\"/><PARAM id=\"km_hu_niva\" value=\"0.6000000238418579\"/><PARAM id=\"km_hu_oktav\" value=\"0.0\"/><PARAM id=\"km_hu_pan\" value=\"-0.1000000238418579\"/><PARAM id=\"km_hu_sandA\" value=\"0.2000000029802322\"/><PARAM id=\"km_hu_sandB\" value=\"0.4000000059604645\"/><PARAM id=\"km_hu_sankning\" value=\"0.5\"/><PARAM id=\"km_hu_slapp\" value=\"0.1499999910593033\"/><PARAM id=\"km_hu_solo\" value=\"0.0\"/><PARAM id=\"km_hu_tyst\" value=\"0.0\"/><PARAM id=\"km_hu_variant\" value=\"0.0\"/><PARAM id=\"km_kb2_accent\" value=\"0.6000000238418579\"/><PARAM id=\"km_kb2_brus\" value=\"0.0\"/><PARAM id=\"km_kb2_cutoff\" value=\"449.9999694824219\"/><PARAM id=\"km_kb2_drive\" value=\"0.300000011920929\"/><PARAM id=\"km_kb2_drivetLage\" value=\"2.0\"/><PARAM id=\"km_kb2_drivetMangd\" value=\"0.449999988079071\"/><PARAM id=\"km_kb2_envMangd\" value=\"0.550000011920929\"/><PARAM id=\"km_kb2_fall\" value=\"0.1199999898672104\"/><PARAM id=\"km_kb2_filterFall\" value=\"0.08999998867511749\"/><PARAM id=\"km_kb2_filterTyp\" value=\"1.0\"/><PARAM id=\"km_kb2_folj\" value=\"1.0\"/><PARAM id=\"km_kb2_forskjutning\" value=\"0.0\"/><PARAM id=\"km_kb2_glid\" value=\"0.04499999061226845\"/><PARAM id=\"km_kb2_hall\" value=\"0.300000011920929\"/><PARAM id=\"km_kb2_langd\" value=\"16.0\"/><PARAM id=\"km_kb2_monster\" value=\"1.0\"/><PARAM id=\"km_kb2_niva\" value=\"0.5\"/><PARAM id=\"km_kb2_osc2Fin\" value=\"7.0\"/><PARAM id=\"km_kb2_osc2Halvtoner\" value=\"0.0\"/><PARAM id=\"km_kb2_osc2Niva\" value=\"0.0\"/><PARAM id=\"km_kb2_pan\" value=\"0.1499999761581421\"/><PARAM id=\"km_kb2_pulsbredd\" value=\"30.00000190734863\"/><PARAM id=\"km_kb2_resonans\" value=\"0.5\"/><PARAM id=\"km_kb2_sandA\" value=\"0.0\"/><PARAM id=\"km_kb2_sandB\" value=\"0.0\"/><PARAM id=\"km_kb2_slapp\" value=\"0.01200000196695328\"/><PARAM id=\"km_kb2_solo\" value=\"0.0\"/><PARAM id=\"km_kb2_sub\" value=\"0.0\"/><PARAM id=\"km_kb2_synk\" value=\"0.0\"/><PARAM id=\"km_kb2_transponering\" value=\"12.0\"/><PARAM id=\"km_kb2_tyst\" value=\"0.0\"/><PARAM id=\"km_kb2_vag\" value=\"0.6000000238418579\"/><PARAM id=\"km_kb2_variant\" value=\"0.0\"/><PARAM id=\"km_kb_accent\" value=\"0.699999988079071\"/><PARAM id=\"km_kb_brus\" value=\"0.0\"/><PARAM id=\"km_kb_cutoff\" value=\"149.9999847412109\"/><PARAM id=\"km_kb_drive\" value=\"0.5\"/><PARAM id=\"km_kb_drivetLage\" value=\"0.0\"/><PARAM id=\"km_kb_drivetMangd\" value=\"0.300000011920929\"/><PARAM id=\"km_kb_envMangd\" value=\"0.6000000238418579\"/><PARAM id=\"km_kb_fall\" value=\"0.1500000208616257\"/><PARAM id=\"km_kb_filterFall\" value=\"0.09999999403953552\"/><PARAM id=\"km_kb_filterTyp\" value=\"0.0\"/><PARAM id=\"km_kb_glid\" value=\"0.04499999061226845\"/><PARAM id=\"km_kb_hall\" value=\"0.4000000059604645\"/><PARAM id=\"km_kb_langd\" value=\"16.0\"/><PARAM id=\"km_kb_monster\" value=\"1.0\"/><PARAM id=\"km_kb_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_kb_osc2Fin\" value=\"7.0\"/><PARAM id=\"km_kb_osc2Halvtoner\" value=\"0.0\"/><PARAM id=\"km_kb_osc2Niva\" value=\"0.0\"/><PARAM id=\"km_kb_pan\" value=\"0.0\"/><PARAM id=\"km_kb_pulsbredd\" value=\"50.0\"/><PARAM id=\"km_kb_resonans\" value=\"0.4000000059604645\"/><PARAM id=\"km_kb_sandA\" value=\"0.0\"/><PARAM id=\"km_kb_sandB\" value=\"0.0\"/><PARAM id=\"km_kb_slapp\" value=\"0.01200000196695328\"/><PARAM id=\"km_kb_solo\" value=\"0.0\"/><PARAM id=\"km_kb_sub\" value=\"0.6000000238418579\"/><PARAM id=\"km_kb_synk\" value=\"0.0\"/><PARAM id=\"km_kb_tyst\" value=\"0.0\"/><PARAM id=\"km_kb_vag\" value=\"0.0\"/><PARAM id=\"km_kb_variant\" value=\"0.0\"/><PARAM id=\"km_klam_attack\" value=\"0.009999998845160007\"/><PARAM id=\"km_klam_efter\" value=\"5.0\"/><PARAM id=\"km_klam_kvot\" value=\"3.000000238418579\"/><PARAM id=\"km_klam_pump\" value=\"0.300000011920929\"/><PARAM id=\"km_klam_slapp\" value=\"0.1499999910593033\"/><PARAM id=\"km_klam_troskel\" value=\"-12.0\"/><PARAM id=\"km_lfo1_form\" value=\"1.0\"/><PARAM id=\"km_lfo1_hz\" value=\"1.999999761581421\"/><PARAM id=\"km_lfo1_synk\" value=\"3.0\"/><PARAM id=\"km_lfo2_form\" value=\"0.0\"/><PARAM id=\"km_lfo2_hz\" value=\"1.999999761581421\"/><PARAM id=\"km_lfo2_synk\" value=\"0.0\"/><PARAM id=\"km_master\" value=\"0.6000000238418579\"/><PARAM id=\"km_menv1_attack\" value=\"0.005000000353902578\"/><PARAM id=\"km_menv1_fall\" value=\"0.300000011920929\"/><PARAM id=\"km_menv1_hall\" value=\"0.0\"/><PARAM id=\"km_menv1_slapp\" value=\"0.199999988079071\"/><PARAM id=\"km_menv1_utlosare\" value=\"0.0\"/><PARAM id=\"km_menv2_attack\" value=\"0.005000000353902578\"/><PARAM id=\"km_menv2_fall\" value=\"0.300000011920929\"/><PARAM id=\"km_menv2_hall\" value=\"0.0\"/><PARAM id=\"km_menv2_slapp\" value=\"0.199999988079071\"/><PARAM id=\"km_menv2_utlosare\" value=\"1.0\"/><PARAM id=\"km_mod1_kalla\" value=\"1.0\"/><PARAM id=\"km_mod1_mal\" value=\"2.0\"/><PARAM id=\"km_mod1_mangd\" value=\"0.3500000238418579\"/><PARAM id=\"km_mod2_kalla\" value=\"0.0\"/><PARAM id=\"km_mod2_mal\" value=\"0.0\"/><PARAM id=\"km_mod2_mangd\" value=\"0.0\"/><PARAM id=\"km_mod3_kalla\" value=\"0.0\"/><PARAM id=\"km_mod3_mal\" value=\"0.0\"/><PARAM id=\"km_mod3_mangd\" value=\"0.0\"/><PARAM id=\"km_mod4_kalla\" value=\"0.0\"/><PARAM id=\"km_mod4_mal\" value=\"0.0\"/><PARAM id=\"km_mod4_mangd\" value=\"0.0\"/><PARAM id=\"km_mod5_kalla\" value=\"0.0\"/><PARAM id=\"km_mod5_mal\" value=\"0.0\"/><PARAM id=\"km_mod5_mangd\" value=\"0.0\"/><PARAM id=\"km_mod6_kalla\" value=\"0.0\"/><PARAM id=\"km_mod6_mal\" value=\"0.0\"/><PARAM id=\"km_mod6_mangd\" value=\"0.0\"/><PARAM id=\"km_spanning\" value=\"0.0\"/><PARAM id=\"km_spela\" value=\"0.0\"/><PARAM id=\"km_sv_bastrumma_klang\" value=\"0.449999988079071\"/><PARAM id=\"km_sv_bastrumma_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_bastrumma_stamning\" value=\"0.0\"/><PARAM id=\"km_sv_bastrumma_tyst\" value=\"0.0\"/><PARAM id=\"km_sv_cymbal_klang\" value=\"0.5\"/><PARAM id=\"km_sv_cymbal_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_cymbal_stamning\" value=\"0.0\"/><PARAM id=\"km_sv_cymbal_tyst\" value=\"0.0\"/><PARAM id=\"km_sv_drivetLage\" value=\"0.0\"/><PARAM id=\"km_sv_drivetMangd\" value=\"0.300000011920929\"/><PARAM id=\"km_sv_handklapp_klang\" value=\"0.5\"/><PARAM id=\"km_sv_handklapp_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_handklapp_stamning\" value=\"0.0\"/><PARAM id=\"km_sv_handklapp_tyst\" value=\"0.0\"/><PARAM id=\"km_sv_hihat_klang\" value=\"0.2000000029802322\"/><PARAM id=\"km_sv_hihat_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_hihat_stamning\" value=\"0.0\"/><PARAM id=\"km_sv_hihat_tyst\" value=\"0.0\"/><PARAM id=\"km_sv_kantslag\" value=\"0.0\"/><PARAM id=\"km_sv_kit\" value=\"1.0\"/><PARAM id=\"km_sv_kubjallra_klang\" value=\"0.5\"/><PARAM id=\"km_sv_kubjallra_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_kubjallra_stamning\" value=\"0.0\"/><PARAM id=\"km_sv_kubjallra_tyst\" value=\"0.0\"/><PARAM id=\"km_sv_langd\" value=\"16.0\"/><PARAM id=\"km_sv_metall_klang\" value=\"0.5\"/><PARAM id=\"km_sv_metall_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_metall_stamning\" value=\"0.0\"/><PARAM id=\"km_sv_metall_tyst\" value=\"0.0\"/><PARAM id=\"km_sv_monster\" value=\"1.0\"/><PARAM id=\"km_sv_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_oppenhihat_klang\" value=\"0.5\"/><PARAM id=\"km_sv_oppenhihat_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_oppenhihat_stamning\" value=\"0.0\"/><PARAM id=\"km_sv_oppenhihat_tyst\" value=\"0.0\"/><PARAM id=\"km_sv_pan\" value=\"0.0\"/><PARAM id=\"km_sv_sandA\" value=\"0.550000011920929\"/><PARAM id=\"km_sv_sandB\" value=\"0.0\"/><PARAM id=\"km_sv_small_klang\" value=\"0.5\"/><PARAM id=\"km_sv_small_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_small_stamning\" value=\"0.0\"/><PARAM id=\"km_sv_small_tyst\" value=\"0.0\"/><PARAM id=\"km_sv_solo\" value=\"0.0\"/><PARAM id=\"km_sv_tomhog_klang\" value=\"0.5\"/><PARAM id=\"km_sv_tomhog_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_tomhog_stamning\" value=\"0.0\"/><PARAM id=\"km_sv_tomhog_tyst\" value=\"0.0\"/><PARAM id=\"km_sv_tomlag_klang\" value=\"0.5\"/><PARAM id=\"km_sv_tomlag_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_tomlag_stamning\" value=\"0.0\"/><PARAM id=\"km_sv_tomlag_tyst\" value=\"0.0\"/><PARAM id=\"km_sv_tyst\" value=\"0.0\"/><PARAM id=\"km_sv_variant\" value=\"2.0\"/><PARAM id=\"km_sv_virvel2_klang\" value=\"0.5\"/><PARAM id=\"km_sv_virvel2_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_virvel2_stamning\" value=\"0.0\"/><PARAM id=\"km_sv_virvel2_tyst\" value=\"0.0\"/><PARAM id=\"km_sv_virvel_klang\" value=\"0.4000000059604645\"/><PARAM id=\"km_sv_virvel_niva\" value=\"0.800000011920929\"/><PARAM id=\"km_sv_virvel_stamning\" value=\"0.0\"/><PARAM id=\"km_sv_virvel_tyst\" value=\"0.0\"/><PARAM id=\"km_svaj_lage\" value=\"0.0\"/><PARAM id=\"km_svaj_mangd\" value=\"0.5\"/><PARAM id=\"km_tempo\" value=\"125.0\"/><PARAM id=\"km_varvLage\" value=\"0.0\"/><PARAM id=\"km_varvtal\" value=\"0.0\"/><Monster><M kanal=\"sv\" nr=\"1\" variant=\"A\" text=\"2000100010001000/0000100000001000///1121112111211121/0000000000000010//////\"/><M kanal=\"kb\" nr=\"1\" variant=\"A\" text=\"0a . 0 0 0a . 0 0 0a . 0 0 -2a . 0 3\"/><M kanal=\"hu\" nr=\"1\" variant=\"A\" text=\"0a . . . . . . . . . . . . . 0/0 3a\"/><M kanal=\"sv\" nr=\"1\" variant=\"B\" text=\"2000100010001010/000010000000102{r1}2///1121112111211121/////0000000000000001//\"/><M kanal=\"sv\" nr=\"2\" variant=\"A\" text=\"2000100010001000/0000100000001000//0000100000001000/1121112111211121/0000000000100000//////\"/><M kanal=\"kb\" nr=\"2\" variant=\"A\" text=\"0a 0 0u 0 0a 0 0u 0 3a 3 3u 3 -2a -2 -2u 0~\"/><M kanal=\"hu\" nr=\"2\" variant=\"A\" text=\"0a . . 0/0 . . 0a . . . 3a . . . -2a .\"/><M kanal=\"sv\" nr=\"2\" variant=\"B\" text=\"2000100010001010/000010000000102{r1}2/0000000000001000/0000100000001000/1121112111211121/0000000000100010//////\"/><M kanal=\"sv\" nr=\"3\" variant=\"A\" text=\"////1010101010101010/////1000000010000000//\"/><M kanal=\"kb\" nr=\"3\" variant=\"A\" text=\"0a/5 . . . . . . . -2a/5 . . . . . . .\"/><M kanal=\"sv\" nr=\"3\" variant=\"B\" text=\"////1010101010101010/////1000000010000000//\"/><M kanal=\"sv\" nr=\"4\" variant=\"A\" text=\"2000100010001000////0010001000100010///////\"/><M kanal=\"sv\" nr=\"4\" variant=\"B\" text=\"2000100010001000////0010001000100010///////\"/></Monster></Kroppsmaskinen>"
+}

@@ -2,7 +2,7 @@
 
 *Modell KM-87. En groovebox för Electronic Body Music och New Beat, byggd som om den kom ur en svart hemelektroniklåda från 1987 och bara gick att se på genom en VHS-skärm.*
 
-**Status:** fas 0 klar i kod (2 november 2026), grind 0 återstår. Se README.md.
+**Status:** fas 0–2 klara och grind 0, 1 och 2 godkända, liksom stilprovet för VHS-panelen och loggan (2 november 2026). Nästa steg: fas 3, VHS-panelen. Se README.md.
 
 Instrument-plugin (VST3, AU, CLAP) och fristående app för macOS, på samma stack som KrangBox. Allt ljud är syntetiskt. Allt i gränssnittet är på svenska.
 
@@ -217,6 +217,8 @@ Varje fas slutar med en **grind**: ett lyssnings- eller granskningstest som mås
 - Drivet per kanal.
 - **Stilprov:** VHS-panelen ritad i `KMSnapshot` – chassi, skärm med trådram, OSD-typsnitt, stegknappar. Bara bilder, ingen funktion ännu.
 
+*Klar i kod. Fabriksbandet har grind 1-looparna som presets (*EBM 128*, *Marsch 120*, *New Beat 112*); KMRender skriver dem till `renders/grind1_*.wav`. Stilprovet ligger i `docs/stilprov_vhs.png` och `docs/stilprov_detaljer.png`, ritat av `KMSnapshot --stilprov`. Parameter-ID:n gick över till formen `km_<kanal>_<vad>` (inget bygge var släppt). Spår 12 är kubjällra eller kantslag, valt med en knapp.*
+
 **Grind 1:** Tre korta loopar (EBM 128 BPM, EBM 120 BPM marsch, New Beat 112 BPM) byggda bara med bas och trummor, renderade och genomlyssnade. Stilprovet godkänt.
 
 ### Fas 2 – Huggen och rummet
@@ -225,6 +227,10 @@ Varje fas slutar med en **grind**: ett lyssnings- eller granskningstest som mås
 - Mixern med sändningar, Grindrummet, Ekot, Svajet, Klämman.
 - Varvtalet (båda lägena) och Spänningen.
 - Modulationen.
+
+*Klar i kod. Avvikelser från planen: de fyra effekterna ligger i en fil (`Source/dsp/Effekter.h`). Varvtalets skivspelarläge gäller med egen klocka; med DAW-transport blir det automatiskt musikaliskt läge (ingen varning behövs, tempot följer projektet). Grindrummet har ett högpass på ingången så att bastrumman inte mullrar i rummet. Modulationens envelopes startas av en vald kanal (Kolvbasen, Kolvbas 2, Hugget, bastrumman eller alla toner). Nya fabrikspresets som startpunkt för grind 2: Fabriksgolv 125, Paroll 132 och Svart skiva 33.*
+
+*Grind 2 godkänd med testlåten `Reaper/Fabriksgolv.RPP` (3:35, byggd av `tools/reaper/gor_reaper_projekt.py`).*
 
 **Grind 2:** Ett helt spår på 3–4 minuter i Reaper, bara med Kroppsmaskinen. Ingen extern effekt.
 

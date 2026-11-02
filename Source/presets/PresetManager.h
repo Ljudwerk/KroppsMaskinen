@@ -10,7 +10,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "FactoryPresets.h"
-#include "../takt/Monster.h"
+#include "../dsp/Motor.h"
 
 namespace km
 {
@@ -18,7 +18,8 @@ namespace km
 class PresetManager
 {
 public:
-    static constexpr int formatVersion = 1;
+    // 1: fas 0 (ett trummönster och ett tonmönster). 2: fas 1 (banker med 16 mönster × A/B per kanal).
+    static constexpr int formatVersion = 2;
     static inline const juce::String fileExtension { ".km87" };
 
     struct Entry
@@ -29,30 +30,68 @@ public:
         juce::File file;
     };
 
-    PresetManager (juce::AudioProcessorValueTreeState& s, TrumMonster& t, TonMonster& b) : state (s), trummor (t), bas (b) { refresh(); }
+    PresetManager (juce::AudioProcessorValueTreeState& s, Banker& b) : state (s), banker (b) { refresh(); }
 
-    // Mönstren sparas som barnet "Monster" i läget.
-    static void writePatterns (juce::ValueTree& tree, const TrumMonster& trummor, const TonMonster& bas)
+    // Mönstren sparas som barnet "Monster" i läget: ett barn "M" per mönster som inte är tomt,
+    // med kanal (kb, kb2, sv, hu), nummer (1–16), variant (A/B) och texten.
+    static void writePatterns (juce::ValueTree& tree, const Banker& banker)
     {
         tree.setProperty ("formatVersion", formatVersion, nullptr);
         tree.removeChild (tree.getChildWithName ("Monster"), nullptr);
         juce::ValueTree m ("Monster");
-        m.setProperty ("trummor", trummor.toString(), nullptr);
-        m.setProperty ("kolvbasen", bas.toString(), nullptr);
+        auto lagg = [&m] (const char* kanal, int nr, int variant, const juce::String& text)
+        {
+            juce::ValueTree e ("M");
+            e.setProperty ("kanal", kanal, nullptr);
+            e.setProperty ("nr", nr + 1, nullptr);
+            e.setProperty ("variant", variant == 0 ? "A" : "B", nullptr);
+            e.setProperty ("text", text, nullptr);
+            m.appendChild (e, nullptr);
+        };
+        for (int nr = 0; nr < antalMonster; ++nr)
+            for (int v = 0; v < 2; ++v)
+            {
+                if (! banker.trummor.get (nr, v).arTomt())   lagg ("sv", nr, v, banker.trummor.get (nr, v).toString());
+                if (! banker.kolvbasen.get (nr, v).arTomt()) lagg ("kb", nr, v, banker.kolvbasen.get (nr, v).toString());
+                if (! banker.kolvbas2.get (nr, v).arTomt())  lagg ("kb2", nr, v, banker.kolvbas2.get (nr, v).toString());
+                if (! banker.hugget.get (nr, v).arTomt())    lagg ("hu", nr, v, banker.hugget.get (nr, v).toString());
+            }
         tree.appendChild (m, nullptr);
     }
 
     // Läser och tar bort barnet. Falskt om filen är från en nyare version än vi förstår.
-    static bool readPatterns (juce::ValueTree& tree, TrumMonster& trummor, TonMonster& bas)
+    static bool readPatterns (juce::ValueTree& tree, Banker& banker)
     {
-        if ((int) tree.getProperty ("formatVersion", 1) > formatVersion) return false;
+        const int version = (int) tree.getProperty ("formatVersion", 1);
+        if (version > formatVersion) return false;
         const auto m = tree.getChildWithName ("Monster");
         if (m.isValid())
         {
-            trummor.fromString (m["trummor"].toString());
-            bas.fromString (m["kolvbasen"].toString());
+            banker.trummor.rensa();
+            banker.kolvbasen.rensa();
+            banker.kolvbas2.rensa();
+            banker.hugget.rensa();
+            if (version == 1)
+            {
+                // Fas 0: ett trummönster och en basgång blir mönster 1A.
+                banker.trummor.get (0, 0).fromString (m["trummor"].toString());
+                banker.kolvbasen.get (0, 0).fromString (m["kolvbasen"].toString());
+            }
+            else
+            {
+                for (const auto& e : m)
+                {
+                    const int nr = (int) e["nr"] - 1, v = e["variant"].toString() == "B" ? 1 : 0;
+                    const auto kanal = e["kanal"].toString();
+                    if (kanal == "sv")       banker.trummor.get (nr, v).fromString (e["text"].toString());
+                    else if (kanal == "kb")  banker.kolvbasen.get (nr, v).fromString (e["text"].toString());
+                    else if (kanal == "kb2") banker.kolvbas2.get (nr, v).fromString (e["text"].toString());
+                    else if (kanal == "hu")  banker.hugget.get (nr, v).fromString (e["text"].toString());
+                }
+            }
             tree.removeChild (m, nullptr);
         }
+        tree.setProperty ("formatVersion", formatVersion, nullptr);
         return true;
     }
 
@@ -125,7 +164,7 @@ public:
         userFolder().createDirectory();
         auto copy = state.copyState();
         copy.setProperty ("presetName", name, nullptr);
-        writePatterns (copy, trummor, bas);
+        writePatterns (copy, banker);
         auto xml = copy.createXml();
         if (xml == nullptr || ! xml->writeTo (userFolder().getChildFile (name + fileExtension))) return false;
         state.state.setProperty ("presetName", name, nullptr);
@@ -155,16 +194,23 @@ private:
             else jassertfalse; // stavfel i FactoryPresets.h
         }
 
-        trummor.rensa();
-        for (const auto& [spar, rad] : preset.trummor)
+        banker.trummor.rensa();
+        banker.kolvbasen.rensa();
+        banker.kolvbas2.rensa();
+        banker.hugget.rensa();
+        for (const auto& t : preset.trummor)
         {
-            const auto steg = TrumMonster::lasRad (juce::String::fromUTF8 (rad));
-            if (steg.empty()) continue;
-            for (int st = 0; st < maxSteg; ++st)
-                trummor.set ((int) spar, st, steg[(size_t) st % steg.size()]);
+            auto& monster = banker.trummor.get (t.monster, t.variant);
+            for (const auto& [spar, rad] : t.rader)
+            {
+                const auto steg = TrumMonster::lasRad (juce::String::fromUTF8 (rad));
+                if (steg.empty()) continue;
+                for (int st = 0; st < maxSteg; ++st)
+                    monster.set ((int) spar, st, steg[(size_t) st % steg.size()]);
+            }
         }
-        bas.rensa();
-        if (preset.kolvbasen != nullptr) bas.fromString (juce::String::fromUTF8 (preset.kolvbasen));
+        for (const auto& t : preset.toner)
+            banker.ton ((int) t.kanal).get (t.monster, t.variant).fromString (juce::String::fromUTF8 (t.text));
     }
 
     bool loadFile (const juce::File& f)
@@ -172,14 +218,13 @@ private:
         auto xml = juce::XmlDocument::parse (f);
         if (xml == nullptr || ! xml->hasTagName (state.state.getType())) return false;
         auto tree = juce::ValueTree::fromXml (*xml);
-        if (! readPatterns (tree, trummor, bas)) return false;
+        if (! readPatterns (tree, banker)) return false;
         state.replaceState (tree);
         return true;
     }
 
     juce::AudioProcessorValueTreeState& state;
-    TrumMonster& trummor;
-    TonMonster& bas;
+    Banker& banker;
     std::vector<Entry> entries;
 };
 

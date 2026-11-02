@@ -55,6 +55,7 @@ public:
     TrumSteg get (int spr, int steg) const { return unpack (celler[index (spr, steg)].load (std::memory_order_relaxed)); }
     void set (int spr, int steg, const TrumSteg& s) { celler[index (spr, steg)].store (pack (s), std::memory_order_relaxed); }
     void rensa() { for (auto& c : celler) c.store (0, std::memory_order_relaxed); }
+    bool arTomt() const { for (auto& c : celler) if (c.load (std::memory_order_relaxed) != 0) return false; return true; }
 
     // Text: ett spår per rad, raderna skilda med '/'. Varje steg är en siffra (0 av, 1 slag, 2 accent),
     // följd av {…} när steget har mer: c = chans, r = ratchet. Exempel: "1000{c2}2000/0000100000001000".
@@ -170,6 +171,7 @@ public:
     TonSteg get (int steg) const { return unpack (celler[index (steg)].load (std::memory_order_relaxed)); }
     void set (int steg, const TonSteg& s) { celler[index (steg)].store (pack (s), std::memory_order_relaxed); }
     void rensa() { for (auto& c : celler) c.store (pack ({}), std::memory_order_relaxed); }
+    bool arTomt() const { for (int i = 0; i < maxSteg; ++i) if (! (get (i) == TonSteg {})) return false; return true; }
 
     // Text: ett ord per steg, skilda med mellanslag. "." = paus, annars halvtoner med tillägg:
     // "a" accent, "~" glid, "u"/"d" oktav upp/ned, "/n" längdindex (utelämnas för standardlängden).
@@ -247,5 +249,45 @@ private:
 
     std::array<std::atomic<uint32_t>, (size_t) maxSteg> celler;
 };
+
+// ---------------------------------------------------------------------------------------------
+// Mönsterbanker: 16 mönster per kanal, vart och ett med variant A och B.
+
+enum class Kanal { Kolvbasen = 0, Kolvbas2, Stampverket, Hugget };
+inline constexpr int antalKanaler = 4;
+inline constexpr int antalMonster = 16;
+
+enum class Variant { A = 0, B, AB };   // AB: A och B växlar varannat varv
+
+template <typename M>
+class MonsterBank
+{
+public:
+    M& get (int monster, int variant) { return bank[index (monster, variant)]; }
+    const M& get (int monster, int variant) const { return bank[index (monster, variant)]; }
+    void rensa() { for (auto& m : bank) m.rensa(); }
+
+private:
+    static size_t index (int monster, int variant)
+    {
+        return (size_t) (juce::jlimit (0, antalMonster - 1, monster) * 2 + juce::jlimit (0, 1, variant));
+    }
+    std::array<M, (size_t) antalMonster * 2> bank;
+};
+
+using TrumBank = MonsterBank<TrumMonster>;
+using TonBank = MonsterBank<TonMonster>;
+
+inline const char* kanalNamn (Kanal k)
+{
+    switch (k)
+    {
+        case Kanal::Kolvbasen:   return "Kolvbasen";
+        case Kanal::Kolvbas2:    return "Kolvbas 2";
+        case Kanal::Stampverket: return "Stampverket";
+        case Kanal::Hugget:      return "Hugget";
+    }
+    return "";
+}
 
 } // namespace km

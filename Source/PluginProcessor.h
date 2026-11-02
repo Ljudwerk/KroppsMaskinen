@@ -47,22 +47,36 @@ public:
 
     juce::AudioProcessorValueTreeState state;
 
-    km::TrumMonster trummor;
-    km::TonMonster kolvbas;
-    km::PresetManager presets { state, trummor, kolvbas };
+    km::Banker banker;
+    km::PresetManager presets { state, banker };
 
     // Det virtuella keyboardet i gränssnittet skriver hit; noterna blandas in i MIDI-flödet.
     juce::MidiKeyboardState keyboardState;
 
     // För gränssnittet.
     std::atomic<float> outputPeak { 0.0f };
-    int trumStegNu() const { return motor.aktuelltTrumSteg.load (std::memory_order_relaxed); }
-    int basStegNu() const  { return motor.aktuelltBasSteg.load (std::memory_order_relaxed); }
+    int stegNu (km::Kanal k) const { return motor.aktuelltSteg[(size_t) k].load (std::memory_order_relaxed); }
+    int monsterNu (km::Kanal k) const { return motor.spelarMonster[(size_t) k].load (std::memory_order_relaxed); }
+    float klamReduktionDb() const { return motor.getKlamReduktionDb(); }
+
+    // Diagnostik för gränssnittet: samplingsfrekvensen motorn förberetts med, senaste blockstorleken,
+    // antal behandlade sampel och antal spelade sextondelar. Jämförs med väggklockan i gränssnittet.
+    std::atomic<double> forberedd { 0.0 };
+    std::atomic<int> senasteBlock { 0 };
+    std::atomic<juce::int64> antalSampel { 0 };
+    juce::int64 spelade() const { return motor.antalSpeladeSteg.load (std::memory_order_relaxed); }
 
 private:
     km::params::Reader reader { state };
     km::Motor motor;
     juce::AudioBuffer<float> scratchRight;
+
+    // Varvtalet i skivspelarläge.
+    void skivspelare (float* left, float* right, int n, const juce::MidiBuffer& midi, const km::Transport& transport, double f);
+    juce::AudioBuffer<float> varvBuffer;
+    juce::MidiBuffer varvMidi;
+    double varvPos = 0.0;
+    std::array<std::array<float, 4>, 2> varvHist {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (KroppsmaskinenProcessor)
 };

@@ -22,11 +22,13 @@ jobs:
       - name: Bygg (universal, Release)
         run: cmake --build build --config Release --target Kroppsmaskinen_All KMRender KMSnapshot -- -quiet
 
-      - name: Renderingstest (mönster, NaN, topp, DC, tystnad, takt)
+      - name: Renderingstest (mönster, ljud, takt, livebyte, solo, följ, drivet, presets)
         run: ./build/KMRender_artefacts/Release/KMRender renders
 
-      - name: Rita panelen
-        run: ./build/KMSnapshot_artefacts/Release/KMSnapshot renders/panelen.png
+      - name: Rita panelen och stilprovet
+        run: |
+          ./build/KMSnapshot_artefacts/Release/KMSnapshot renders/panelen.png
+          ./build/KMSnapshot_artefacts/Release/KMSnapshot --stilprov renders/stilprov_vhs.png
 
       - name: Hämta pluginval
         run: |

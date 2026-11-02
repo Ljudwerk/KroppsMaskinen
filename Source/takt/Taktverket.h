@@ -71,6 +71,7 @@ public:
         samplesPerPpq = sr * 60.0 / aktuelltBpm;
         const double start = host ? t.ppq : egenPpq;
         const double slut = start + numSamples / samplesPerPpq;
+        blockStart = start;
 
         if (senastSlut >= 0.0 && std::abs (start - senastSlut) > 0.01) hopp = true;   // DAW:en hoppade eller loopade
         senastSlut = slut;
@@ -90,6 +91,9 @@ public:
     }
 
     const Handelse& handelse (int i) const { return ut[(size_t) i]; }
+
+    // Positionen i fjärdedelar vid ett sample i det senaste blocket, eller −1 om sekvensern står still.
+    double ppqVid (int offset) const { return gick ? blockStart + offset / samplesPerPpq : -1.0; }
     bool hoppade() const { return hopp; }
     bool gar() const { return gick; }
     double samplesPerSteg() const { return samplesPerPpq * stegLangd; }
@@ -104,7 +108,7 @@ public:
     }
 
 private:
-    double sr = 48000.0, egenPpq = 0.0, senastSlut = -1.0;
+    double sr = 48000.0, egenPpq = 0.0, senastSlut = -1.0, blockStart = 0.0;
     double samplesPerPpq = 48000.0 * 0.5, aktuelltBpm = 125.0;
     bool gick = false, hopp = false;
     std::array<Handelse, maxHandelser> ut {};

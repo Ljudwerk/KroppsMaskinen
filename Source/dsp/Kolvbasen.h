@@ -1,7 +1,7 @@
-// Kolvbasen – sekvensbasen (fas 0).
-// Sågtand som tonar över i puls med pulsbreddsmodulation, en sub en oktav ned, ett eget 24 dB-ladderfilter
-// (ZDF, så att cutoff kan ändras varje sample och filterenvelopen blir knivskarp) och en accentväg som
-// höjer både nivån och filtersvepet, som på de gamla monofona sekvensbasarna.
+// Kolvbasen – sekvensbasen. Samma motor spelar både Kolvbasen och Kolvbas 2.
+// Två oscillatorer (sågtand som tonar över i puls), synk, en sub en oktav ned, brus, ett eget 24 dB-ladderfilter
+// (ZDF, så att cutoff kan ändras varje sample och filterenvelopen blir knivskarp) eller ett tunnare 12 dB-filter,
+// och en accentväg som höjer både nivån och filtersvepet, som på de gamla monofona sekvensbasarna.
 //
 // Glid: en ton som spelas medan förra tonen fortfarande hålls (legato) glider dit och startar inte om envelopes.
 //
@@ -30,8 +30,30 @@ struct KolvbasParams
     float hall       = 0.6f;    // förstärkarens hållnivå 0..1
     float slapp      = 0.012f;  // släpp, sekunder
     float glid       = 0.045f;  // sekunder
-    float drive      = 0.3f;    // 0..1
+    float drive      = 0.3f;    // 0..1 (filtrets ingång)
+
+    // Fas 1
+    float osc2Niva   = 0.0f;    // 0..1
+    float osc2Halvtoner = 0.0f; // −24..+24
+    float osc2Fin    = 0.0f;    // cent
+    bool  synk       = false;   // osc 2 startas om av osc 1
+    float brus       = 0.0f;    // 0..1
+    int   filterTyp  = 0;       // 0 = 24 dB ladder, 1 = 12 dB (tunnare)
+
+    // Fas 2
+    float tonhojdOffset = 0.0f; // halvtoner (Varvtalet)
 };
+
+// Ett sample av vågformen (sågtand som tonar över i puls) vid fasen ph, med polyBLEP.
+inline double kolvVag (double ph, double dt, double vag, double pw)
+{
+    const double saw = 2.0 * ph - 1.0 - polyBlep (ph, dt);
+    double pulse = ph < pw ? 1.0 : -1.0;
+    pulse += polyBlep (ph, dt);
+    pulse -= polyBlep (std::fmod (ph + 1.0 - pw, 1.0), dt);
+    pulse += 2.0 * pw - 1.0; // ta bort pulsens DC
+    return (1.0 - vag) * saw + vag * pulse;
+}
 
 // Ett 24 dB-ladderfilter med nollfördröjd återkoppling och mättnad på ingången.
 class Ladder
@@ -80,7 +102,8 @@ public:
     void reset()
     {
         numHeld = 0;
-        ph = phSub = 0.0;
+        ph = ph2 = phSub = 0.0;
+        svf.reset();
         ampEnv = filterEnv = 0.0f;
         stage = Stage::Av;
         ladder.reset();
@@ -130,22 +153,30 @@ public:
 
         // --- Tonhöjd och oscillatorer
         currentNote += (targetNote - currentNote) * glidKoef;
-        const double f = noteToHz (currentNote);
+        const double f = noteToHz (currentNote + params.tonhojdOffset);
         const double dt = f / sr, dtSub = dt * 0.5;
 
-        const double saw = 2.0 * ph - 1.0 - polyBlep (ph, dt);
         const double pw = std::clamp ((double) params.pulsbredd, 0.05, 0.5);
-        double pulse = ph < pw ? 1.0 : -1.0;
-        pulse += polyBlep (ph, dt);
-        pulse -= polyBlep (std::fmod (ph + 1.0 - pw, 1.0), dt);
-        pulse += 2.0 * pw - 1.0; // ta bort pulsens DC
+        const double vag = params.vag;
+        const double o1 = kolvVag (ph, dt, vag, pw);
         const double sub = std::sin (twoPi * phSub);
+
+        // Osc 2: egen stämning, och med synk startas den om varje gång osc 1 börjar en ny period.
+        double o2 = 0.0;
+        if (params.osc2Niva > 0.0f)
+        {
+            const double dt2 = std::min (0.45, dt * std::exp2 ((params.osc2Halvtoner + params.osc2Fin * 0.01) / 12.0));
+            o2 = kolvVag (ph2, dt2, vag, pw);
+            ph2 += dt2; if (ph2 >= 1.0) ph2 -= 1.0;
+            if (params.synk && ph + dt >= 1.0) ph2 = (ph + dt - 1.0) / dt * dt2;   // synk: följ osc 1:s nya period
+        }
 
         ph += dt;       if (ph >= 1.0) ph -= 1.0;
         phSub += dtSub; if (phSub >= 1.0) phSub -= 1.0;
 
-        const float vag = params.vag;
-        float x = (float) ((1.0 - vag) * saw + vag * pulse) * 0.7f + params.sub * (float) sub * 0.6f;
+        float x = (float) (o1 + params.osc2Niva * o2) * 0.7f / (1.0f + 0.5f * params.osc2Niva)
+                + params.sub * (float) sub * 0.6f
+                + params.brus * brusKalla.bipolar() * 0.5f;
 
         // --- Envelopes
         tickEnvelopes();
@@ -156,7 +187,16 @@ public:
                          + (currentNote - 36.0) / 12.0 * 0.3;
         const double cutoff = params.cutoffHz * std::exp2 (okt);
         const float drive = 1.0f + 3.0f * params.drive;
-        float y = ladder.tick (x, cutoff, params.resonans * 0.97f, drive, sr);
+        float y;
+        if (params.filterTyp == 0)
+            y = ladder.tick (x, cutoff, params.resonans * 0.97f, drive, sr);
+        else
+        {
+            // 12 dB: tunnare och mer "piggig" resonans, som på de minsta sekvensbasarna.
+            svf.set (cutoff, 0.6 + 11.0 * params.resonans * params.resonans, sr);
+            svf.tick (mjukKlipp (x * drive) / drive);
+            y = svf.lp * 1.15f;
+        }
 
         // --- Förstärkare
         const float niva = 1.7f * (1.0f + 0.4f * accentSvep);
@@ -165,6 +205,7 @@ public:
     }
 
     bool isActive() const { return stage != Stage::Av; }
+    bool haller() const { return stage == Stage::Anslag || stage == Stage::Fall; }
     int heldNote() const { return (int) std::lround (targetNote); }
 
 private:
@@ -199,7 +240,7 @@ private:
                 break;
             case Stage::Slapp:
                 ampEnv -= ampEnv * slappKoef;
-                if (ampEnv < 1.0e-4f) { ampEnv = 0.0f; stage = Stage::Av; ladder.reset(); }
+                if (ampEnv < 1.0e-4f) { ampEnv = 0.0f; stage = Stage::Av; ladder.reset(); svf.reset(); }
                 break;
             case Stage::Av:
                 break;
@@ -227,7 +268,9 @@ private:
     double targetNote = 36.0, currentNote = 36.0;
     float glidKoef = 1.0f;
 
-    double ph = 0.0, phSub = 0.0;
+    double ph = 0.0, ph2 = 0.0, phSub = 0.0;
+    Svf svf;
+    Slump brusKalla { 0x4b4f4c56u };
     float ampEnv = 0.0f, filterEnv = 0.0f, accentNu = 0.0f;
     Stage stage = Stage::Av;
     int gateOffIn = -1;
