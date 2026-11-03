@@ -17,6 +17,9 @@ public:
 
     void paint (juce::Graphics&) override {}
     void resized() override {}
+    // Panelen tar tangentbordsfokus när editorn visas, så att datorns tangentbord spelar direkt.
+    void parentHierarchyChanged() override { if (isShowing()) panel.grabKeyboardFocus(); }
+    void visibilityChanged() override { if (isShowing()) panel.grabKeyboardFocus(); }
 
     static constexpr float standardSkala = 0.85f;
     void sattSkala (float s);

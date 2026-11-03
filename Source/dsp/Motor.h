@@ -45,6 +45,7 @@ struct KanalParams
     float sandA = 0.0f;           // till Grindrummet
     float sandB = 0.0f;           // till Ekot
     bool tyst = false, solo = false;
+    bool midi = false;            // spelas av inkommande MIDI i stället för av sekvensern
 };
 
 // Varvtalet: 45 varv, 33 varv eller 33 varv med pitchen uppskruvad 8 %.
@@ -413,12 +414,15 @@ private:
 
         if (m.isAllNotesOff() || m.isAllSoundOff()) { for (auto& k : kolvbas) k.allNotesOff(); hugget.allNotesOff(); return; }
 
-        if (gar)
+        // MIDI-kanal 1 Kolvbasen, 2 Kolvbas 2, 3 Hugget. När sekvensern går transponerar tonerna i stället,
+        // utom till en kanal som spelas från MIDI (då spelar tonen alltid kanalen).
+        const int kanal = m.getChannel();
+        const int malKanal = kanal == 2 ? 1 : (kanal == 3 ? 3 : 0);
+        if (gar && ! bas.kanaler[(size_t) malKanal].midi)
         {
             if (m.isNoteOn()) transponering = juce::jlimit (-24, 24, m.getNoteNumber() - bas.grundton);
             return;
         }
-        const int kanal = m.getChannel();
         if (kanal == 3)
         {
             if (m.isNoteOn()) { hugget.noteOn (m.getNoteNumber(), m.getFloatVelocity()); modulation.tonPa (EnvUtlosare::Hugget, m.getFloatVelocity()); raknaSlag (Kanal::Hugget); }
@@ -477,7 +481,8 @@ private:
 
         const double perSteg = taktverket.samplesPerSteg();
 
-        // --- Stampverket
+        // --- Stampverket (inte när kanalen spelas från MIDI)
+        if (! bas.kanaler[(size_t) Kanal::Stampverket].midi)
         {
             const auto& kp = bas.kanaler[(size_t) Kanal::Stampverket];
             const int langd = juce::jlimit (1, maxSteg, kp.langd);
@@ -504,6 +509,7 @@ private:
         // --- Kolvbasen och Kolvbas 2
         for (int b = 0; b < 2; ++b)
         {
+            if (bas.kanaler[(size_t) b].midi) continue;   // spelas från MIDI
             const bool folj = b == 1 && bas.foljKolvbasen;
             const int kalla = folj ? 0 : b;                    // vems mönster som spelas
             const auto& kp = bas.kanaler[(size_t) kalla];
@@ -529,6 +535,7 @@ private:
         }
 
         // --- Hugget
+        if (! bas.kanaler[(size_t) Kanal::Hugget].midi)
         {
             const auto& kp = bas.kanaler[(size_t) Kanal::Hugget];
             const int langd = juce::jlimit (1, maxSteg, kp.langd);

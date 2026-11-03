@@ -38,6 +38,41 @@ public:
     void mouseDrag (const juce::MouseEvent& e) override { const int t = tangent (e.position); if (t != aktiv) spela (t, e.position.y); }
     void mouseUp (const juce::MouseEvent&) override { slapp(); }
 
+    // Datorns tangentbord (som i KrangBox): A W S E D F T G Y H U J K O L P = C … D♯ en oktav upp,
+    // Z och X byter oktav. Panelen anropar detta när en tangent trycks ned eller släpps.
+    static constexpr const char* datorTangenter = "awsedftgyhujkolp";
+
+    // Returnerar sant om tangentbordets läge ändrade något.
+    bool datorTangentbord()
+    {
+        bool andrat = false;
+        const juce::String tangenter (datorTangenter);
+        for (int i = 0; i < tangenter.length(); ++i)
+        {
+            const bool ned = juce::KeyPress::isKeyCurrentlyDown (tangenter[i]) || juce::KeyPress::isKeyCurrentlyDown (juce::CharacterFunctions::toUpperCase (tangenter[i]));
+            auto& var = datorNed[(size_t) i];
+            if (ned == (var >= 0)) continue;
+            andrat = true;
+            if (ned)
+            {
+                var = juce::jlimit (0, 127, basNot() + i);
+                lage.proc.keyboardState.noteOn (midiKanal(), var, 0.8f);
+                if (nedslag) nedslag (var, 0.8f);
+            }
+            else
+            {
+                lage.proc.keyboardState.noteOff (midiKanal(), var, 0.0f);
+                var = -1;
+            }
+        }
+        if (andrat) repaint();
+        return andrat;
+    }
+    void slappDator()
+    {
+        for (auto& v : datorNed) if (v >= 0) { lage.proc.keyboardState.noteOff (midiKanal(), v, 0.0f); v = -1; }
+    }
+
     void tick()
     {
         juce::int64 h = midiKanal() * 131 + basNot();
@@ -82,6 +117,7 @@ private:
 
     PanelLage& lage;
     int aktiv = -1;
+    std::array<int, 16> datorNed { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
     juce::int64 hash = 0;
 };
 

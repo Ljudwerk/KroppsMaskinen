@@ -73,11 +73,11 @@ struct Visare
     void operator() (const juce::String& namn, const juce::String& varde) const { if (visa) visa (namn, varde); }
 };
 
-// Basklass: ett reglage i rattpanelen. Höjden är alltid 50; cellbredden varierar.
+// Basklass: ett reglage i rattpanelen. Höjden är alltid 60 (med värdet under etiketten); cellbredden varierar.
 class Reglage : public juce::Component
 {
 public:
-    static constexpr int hojd = 50;
+    static constexpr int hojd = 60;
     int bredd = 0;                                   // > 0: cellbredd bestämd av layouten
     int cellBredd() const { return bredd > 0 ? bredd : naturligBredd(); }
     virtual int naturligBredd() const { return 58; }
@@ -135,12 +135,20 @@ public:
 
     int naturligBredd() const override { return r > 14.0f ? (int) (r * 3.4f) : 58; }
 
+    bool visaVardet = false;   // värdet under etiketten (rattpanelen och vyerna)
+
+    // Höjden som ratten behöver: ratt, etikett och värde.
+    int hojdBehov() const { return r > 14.0f ? (int) (r * 2.9f + 22.0f + (visaVardet ? 10.0f : 0.0f)) : hojd; }
+
     void paint (juce::Graphics& g) override
     {
         const float n = inv ? 1.0f - norm() : norm();
         stil::ritaRatt (g, centrum(), r, n, rattTyp);
-        if (r > 14.0f) etikett (g, etikettText, { 0.0f, centrum().y + r * 1.42f + 5.0f, (float) getWidth(), 8.0f }, 5.4f);
+        float y = 40.0f;
+        if (r > 14.0f) { y = centrum().y + r * 1.42f + 5.0f; etikett (g, etikettText, { 0.0f, y, (float) getWidth(), 8.0f }, 5.4f); }
         else ritaEtikett (g);
+        if (visaVardet)
+            etikett (g, versaler (ui::formatValue (param, varde)), { 1.0f, y + 10.0f, (float) getWidth() - 2.0f, 7.0f }, 5.0f, farg::lysOrange.withAlpha (0.85f));
     }
 
     void mouseDown (const juce::MouseEvent& e) override
@@ -171,6 +179,43 @@ private:
     float r;
     stil::RattTyp rattTyp;
     bool inv;
+    float startNorm = 0.0f, startY = 0.0f;
+};
+
+// ---------------------------------------------------------------------------------------------
+// Fader: lodrät, dra (Skift = fint), rulla, dubbelklicka för grundvärdet. Etikett och värde under.
+
+class Fader final : public ParamReglage
+{
+public:
+    Fader (juce::AudioProcessorValueTreeState& s, const juce::String& id, const juce::String& text, const Visare& v)
+        : ParamReglage (s, id, text, v) {}
+
+    int naturligBredd() const override { return 44; }
+    Rectangle<float> spar() const { return { 0.0f, 0.0f, (float) getWidth(), (float) getHeight() - 22.0f }; }
+
+    void paint (juce::Graphics& g) override
+    {
+        const auto r = spar();
+        stil::ritaFader (g, r.withSizeKeepingCentre (juce::jmin (r.getWidth(), 34.0f), r.getHeight()), norm());
+        const float y = r.getBottom() + 3.0f;
+        etikett (g, etikettText, { 0.0f, y, (float) getWidth(), 8.0f }, 5.2f);
+        etikett (g, versaler (ui::formatValue (param, varde)), { 0.0f, y + 10.0f, (float) getWidth(), 7.0f }, 5.0f, farg::lysOrange.withAlpha (0.85f));
+    }
+    void mouseDown (const juce::MouseEvent& e) override { startNorm = norm(); startY = e.position.y; koppling.beginGesture(); visaVarde(); }
+    void mouseDrag (const juce::MouseEvent& e) override
+    {
+        const float h = juce::jmax (20.0f, spar().getHeight() - 18.0f);
+        sattNorm (startNorm + (startY - e.position.y) / h * (e.mods.isShiftDown() ? 0.15f : 1.0f), false);
+    }
+    void mouseUp (const juce::MouseEvent&) override { koppling.endGesture(); }
+    void mouseDoubleClick (const juce::MouseEvent&) override { sattNorm (param.getDefaultValue(), true); }
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w) override
+    {
+        sattNorm (norm() + ((w.deltaY > 0.0f) != w.isReversed ? 0.02f : -0.02f), true);
+    }
+
+private:
     float startNorm = 0.0f, startY = 0.0f;
 };
 

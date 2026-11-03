@@ -31,7 +31,7 @@ inline bool arMonsterParameter (const juce::String& id)
                      id::folj, id::forskjutning, id::transponering })
         if (id == g) return true;
     for (int k = 0; k < antalKanaler; ++k)
-        for (auto* v : { "langd", "monster", "variant", "tyst", "solo" })
+        for (auto* v : { "langd", "monster", "variant", "tyst", "solo", "midi" })
             if (id == id::kanal (k, v)) return true;
     return false;
 }

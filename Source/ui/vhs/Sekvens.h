@@ -19,7 +19,7 @@ class Sekvens final : public juce::Component
 public:
     explicit Sekvens (PanelLage& l) : lage (l) { setOpaque (true); }
 
-    static constexpr float etikettB = 40.0f;
+    static constexpr float etikettB = 64.0f;
 
     void paint (juce::Graphics& g) override
     {
@@ -135,7 +135,7 @@ private:
             const float y = (float) t * rh;
             const bool vald = t == lage.valdTrumma;
             if (vald) { g.setColour (juce::Colours::white.withAlpha (0.06f)); g.fillRect (0.0f, y, (float) getWidth(), rh); }
-            etikett (g, t == 10 ? stil::sv ("SMÄLL") : juce::String (namn[t]), { 4.0f, y, etikettB - 8.0f, rh }, juce::jmin (4.6f, rh * 0.5f),
+            etikett (g, t == 10 ? stil::sv ("SMÄLL") : juce::String (namn[t]), { 4.0f, y, etikettB - 8.0f, rh }, juce::jmin (6.5f, rh * 0.5f),
                      vald ? farg::vitt : farg::silverMatt, juce::Justification::centredLeft);
             for (int c = 0; c < 16; ++c)
             {
@@ -150,7 +150,7 @@ private:
                 g.setColour (f);
                 g.fillRoundedRectangle (cell, 1.5f);
                 if (s.harTillagg() && rh > 7.0f)
-                    etikett (g, redigering::trumText (s), cell, juce::jmin (4.2f, rh * 0.45f), juce::Colours::black.withAlpha (0.8f));
+                    etikett (g, redigering::trumText (s), cell, juce::jmin (5.5f, rh * 0.45f), juce::Colours::black.withAlpha (0.8f));
             }
         }
     }

@@ -238,6 +238,9 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     // Fas 4: låtläget.
     layout.add (std::make_unique<juce::AudioParameterBool> (pid (id::latLage), namn ("Låtläget"), false));
     layout.add (std::make_unique<C> (pid (id::latSlut), namn ("Låtens slut"), juce::StringArray { "Loopa", "Stanna" }, 0));
+    // Fas 4: MIDI-spel per kanal – kanalen spelas av inkommande MIDI i stället för av sekvensern.
+    for (int k = 0; k < antalKanaler; ++k)
+        layout.add (std::make_unique<juce::AudioParameterBool> (pid (id::kanal (k, "midi")), namn (kanalNamn ((Kanal) k)) + namn (" spelas från MIDI"), false));
     return layout;
 }
 
@@ -282,6 +285,7 @@ public:
             c.drivetLage = p (id::kanal (k, "drivetLage")); c.drivetMangd = p (id::kanal (k, "drivetMangd"));
             c.niva = p (id::kanal (k, "niva")); c.tyst = p (id::kanal (k, "tyst")); c.solo = p (id::kanal (k, "solo"));
             c.pan = p (id::kanal (k, "pan")); c.sandA = p (id::kanal (k, "sandA")); c.sandB = p (id::kanal (k, "sandB"));
+            c.midi = p (id::kanal (k, "midi"));
         }
         for (int k = 0; k < 2; ++k)
         {
@@ -325,6 +329,7 @@ public:
             o.pan = c.pan->load(); o.sandA = c.sandA->load(); o.sandB = c.sandB->load();
             o.tyst = c.tyst->load() > 0.5f;
             o.solo = c.solo->load() > 0.5f;
+            o.midi = c.midi->load() > 0.5f;
         }
         for (size_t k = 0; k < 2; ++k)
         {
@@ -385,7 +390,7 @@ public:
 private:
     using P = std::atomic<float>*;
     P spela, tempo, gung, grundton, master, folj, forskjutning, transponering, kit, kantslag, varvtal, varvLage, spanning, latLage, latSlut;
-    struct KanalP { P langd, monster, variant, drivetLage, drivetMangd, niva, tyst, solo, pan, sandA, sandB; };
+    struct KanalP { P langd, monster, variant, drivetLage, drivetMangd, niva, tyst, solo, pan, sandA, sandB, midi; };
     std::array<P, 10> hu {};
     std::array<P, 20> fx {};
     struct LfoP { P form, hz, synk; };

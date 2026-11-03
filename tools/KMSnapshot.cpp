@@ -138,7 +138,7 @@ int main (int argc, char* argv[])
                 {
                     if (! c->isVisible() || c->getBounds().intersects (undantag) || c->getBounds().intersects (juce::Rectangle<int> (918, 118, 60, 40))) continue;
                     if (c->getBounds().getY() < 70 && c->getBounds().getX() >= 408 && c->getBounds().getX() < 440) continue;   // SPOLA
-                    if (c->getBounds().intersects (juce::Rectangle<int> (878, 472, 60, 24))) continue;   // SPARA ljud (dialog)
+                    if (c->getBounds().intersects (juce::Rectangle<int> (878, 628, 60, 24))) continue;   // SPARA ljud (dialog)
                     for (float fx : { 0.2f, 0.5f, 0.8f })
                         for (auto m : { juce::ModifierKeys(), juce::ModifierKeys (juce::ModifierKeys::shiftModifier), juce::ModifierKeys (juce::ModifierKeys::altModifier) })
                             skicka (*c, { c->getWidth() * fx, c->getHeight() * 0.5f }, m, fx < 0.5f ? -20.0f : 0.0f);

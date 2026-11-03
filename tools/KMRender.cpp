@@ -42,6 +42,7 @@
 //       högst 0 dBFS, rimlig nivå, och varje rad låter om inte alla kanalerna är tysta. Skrivs som demo_*.wav.
 //   21. Ljudbanken: ett ljud byter bara kanalens klang (mönster, tempo och mix står kvar), alla fabriksljud
 //       låter rent, och Lås mönstren laddar ett preset utan att mönster och tempo byts.
+//   22. MIDI-spel: en kanal som spelas från MIDI tystnar i sekvensern och spelas av MIDI-tonerna medan sekvensern går.
 //
 // Grind 0-loopen hamnar i renders/grind0_kolv125.wav, grind 1-looparna i renders/grind1_*.wav.
 //
@@ -942,6 +943,53 @@ void testaLjudbanken()
     }
 }
 
+void testaMidiSpel()
+{
+    std::cout << "22. MIDI-spel\n";
+    using namespace km::params;
+    // Sekvensern går (egen klocka). Kolvbasen spelas från MIDI: mönstret tystnar, tonen på kanal 1 spelar.
+    auto spela = [] (bool midi, bool medTon)
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Kolv 125");
+        satt (*p, id::kanal (0, "solo"), 1.0f);
+        satt (*p, id::kanal (0, "midi"), midi ? 1.0f : 0.0f);
+        satt (*p, id::spela, 1.0f);
+        const auto hela = medTon ? rendera (*p, 1.5, ton (1, 45, 1.0, 0.2)) : rendera (*p, 1.5);
+        // Från 0,15 s: kanalernas nivåer glider in de första millisekunderna (solo sätts efter första blocket).
+        juce::AudioBuffer<float> ut (hela.getNumChannels(), hela.getNumSamples() - (int) (0.15 * sr));
+        for (int c = 0; c < ut.getNumChannels(); ++c) ut.copyFrom (c, 0, hela, c, (int) (0.15 * sr), ut.getNumSamples());
+        return mat (ut);
+    };
+    const auto sekvens = spela (false, false), tyst = spela (true, false), medNot = spela (true, true);
+    kontroll (sekvens.rms > 0.01 && tyst.rms < 0.001 && medNot.rms > 0.01,
+              juce::String::fromUTF8 ("Kolvbasen från MIDI: mönstret ") + juce::String (dB (sekvens.rms), 1) + juce::String::fromUTF8 (" dB, MIDI-läge utan toner ")
+              + juce::String (dB (tyst.rms), 1) + juce::String::fromUTF8 (" dB, med en ton ") + juce::String (dB (medNot.rms), 1) + " dB");
+    // Stampverket från MIDI: sekvensens trummor tystnar, kanal 10 spelar fortfarande.
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Kolv 125");
+        satt (*p, id::kanal (2, "solo"), 1.0f);
+        satt (*p, id::kanal (2, "midi"), 1.0f);
+        satt (*p, id::spela, 1.0f);
+        auto delAv = [] (const juce::AudioBuffer<float>& b)
+        {
+            juce::AudioBuffer<float> u (b.getNumChannels(), b.getNumSamples() - (int) (0.15 * sr));
+            for (int c = 0; c < u.getNumChannels(); ++c) u.copyFrom (c, 0, b, c, (int) (0.15 * sr), u.getNumSamples());
+            return mat (u);
+        };
+        const auto utan = delAv (rendera (*p, 1.0));
+        auto q = nyProcessor();
+        q->presets.loadByName ("Kolv 125");
+        satt (*q, id::kanal (2, "solo"), 1.0f);
+        satt (*q, id::kanal (2, "midi"), 1.0f);
+        satt (*q, id::spela, 1.0f);
+        const auto med = delAv (rendera (*q, 1.0, ton (10, 36, 0.1, 0.3)));
+        kontroll (utan.rms < 0.001 && med.rms > 0.005,
+                  juce::String::fromUTF8 ("Stampverket från MIDI: utan toner ") + juce::String (dB (utan.rms), 1) + juce::String::fromUTF8 (" dB, bastrumma på kanal 10 ") + juce::String (dB (med.rms), 1) + " dB");
+    }
+}
+
 } // namespace
 
 // --state: läget efter preset, parametrar och mönster.
@@ -1163,6 +1211,7 @@ int main (int argc, char* argv[])
     testaLaten();
     testaDemolatarna (katalog);
     testaLjudbanken();
+    testaMidiSpel();
 
     std::cout << (fel == 0 ? "\nAlla test gick igenom.\n" : "\n" + std::to_string (fel) + " test misslyckades.\n");
     std::cout << "Filerna ligger i " << katalog.getFullPathName() << "\n";

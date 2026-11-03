@@ -20,7 +20,7 @@ class LatVy final : public juce::Component
 public:
     explicit LatVy (PanelLage& l) : lage (l) { setOpaque (true); }
 
-    static constexpr float etikettB = 52.0f;
+    static constexpr float etikettB = 84.0f;
     static constexpr int antalRaderIVy = 8;   // rubrik, takter, fyra kanaler, Spänningen, transponering
     int valdRad = 0;
     int sida = 0;                             // 0..3, sexton rader per sida
@@ -39,7 +39,7 @@ public:
         for (int i = 0; i < antalRaderIVy; ++i)
         {
             const juce::String t = i == 6 ? stil::sv ("SPÄNN.") : juce::String (etiketter[i]);
-            etikett (g, t, { 4.0f, (float) i * rh, etikettB - 8.0f, rh }, juce::jmin (4.4f, rh * 0.42f), i == 0 ? farg::silver : farg::silverMatt,
+            etikett (g, t, { 4.0f, (float) i * rh, etikettB - 8.0f, rh }, juce::jmin (6.0f, rh * 0.42f), i == 0 ? farg::silver : farg::silverMatt,
                      juce::Justification::centredLeft);
         }
         // Sidpilarna i rubrikraden.
@@ -62,7 +62,7 @@ public:
             }
             const auto lr = laten().get (rad);
             auto cell = [&] (int i) { return Rectangle<float> (x, (float) i * rh, cw, rh).reduced (2.0f, 1.0f); };
-            const float h = juce::jmin (5.0f, rh * 0.45f);
+            const float h = juce::jmin (7.5f, rh * 0.45f);
             etikett (g, juce::String (rad + 1).paddedLeft ('0', 2), cell (0), h, rad == spelar ? farg::lysOrange : farg::vitt);
             etikett (g, juce::String (lr.takter), cell (1), h, farg::lysOrange);
             for (int k = 0; k < antalKanaler; ++k)

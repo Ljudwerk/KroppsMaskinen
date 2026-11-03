@@ -2,8 +2,12 @@
 //
 // Sektionerna följer stilprovet: Bandverket överst (transport, räkneverk, bandhastighet, tempo,
 // Varvtalet, Spänningen), kanalväljaren till vänster, bildskärmen i mitten, presets/VU/master till
-// höger, rattpanelen med vyerna KANAL · SEKVENS · MIXER · EFFEKTER · MODULATION, stegraden och
+// höger, rattpanelen med vyerna KANAL · SEKVENS · MIXER · EFFEKTER · MODULATION · LÅTEN, stegraden och
 // klaviaturen.
+//
+// KANAL-vyn visar kanalväljaren, bildskärmen och rattpanelen. De andra vyerna är egna sidor (som i
+// KrangBox): de tar över kanalväljarens, bildskärmens och rattpanelens plats med stora reglage i lådor,
+// och en liten kanalväljare flyttar in under presets. Presets, VU och mastern syns alltid.
 //
 // Prestanda: allt som inte rör sig (chassit, fälten, trycket, grupprubrikerna, infattningen) ritas
 // en gång till en bild i fysisk upplösning och byggs om bara när vy, kanal, trumma eller skala
@@ -62,30 +66,52 @@ public:
     {
         setOpaque (true);
         setSize (designBredd, designHojd);
+        setWantsKeyboardFocus (true);
         lage.andrat = [this] { andrat(); };
         visare.visa = [this] (const juce::String& n, const juce::String& v) { vfdNamn = versaler (n); vfdVarde = versaler (v); vfdTid = nu(); vfd->repaint(); };
 
         byggBandverket();
-        byggKanalvaljaren();
         byggBildskarmen();
+        kanalYtor.push_back (&bild);
         byggPresets();
         byggVyknappar();
         byggLjudvaljaren();
-        byggVyerna();
         addAndMakeVisible (stegrad);
-        stegrad.setBounds (14, 628, 1172, 92);
-        addAndMakeVisible (sekvens);
-        sekvens.setBounds (falt.getX() + 222, falt.getY() + 6, falt.getWidth() - 232, falt.getHeight() - 12);
-        addAndMakeVisible (latVy);
-        latVy.setBounds (sekvens.getBounds());
+        stegrad.setBounds (14, 660, 1172, 92);
+        addChildComponent (sekvens);
+        addChildComponent (latVy);
+        byggSidorna();
+        byggKanalsidor();
+        byggMinikanaler();
         byggKlaviaturen();
 
-        layoutVyerna();
         valjVy (Vy::Kanal, 0);
         startTimerHz (30);
     }
 
-    ~Panel() override { stopTimer(); }
+    ~Panel() override { stopTimer(); klaviatur.slappDator(); }
+
+    // Datorns tangentbord spelar klaviaturen (A W S E D … = C C♯ D …), Z och X byter oktav, mellanslag
+    // startar och stoppar. Panelen tar tangentbordsfokus när man klickar i den.
+    bool keyPressed (const juce::KeyPress& k) override
+    {
+        const auto c = juce::CharacterFunctions::toLowerCase (k.getTextCharacter());
+        if (k.getModifiers().isCommandDown() || k.getModifiers().isCtrlDown()) return false;
+        if (c == 'z' || c == 'x')
+        {
+            klaviatur.slappDator();
+            klaviatur.oktav = juce::jlimit (0, 6, klaviatur.oktav + (c == 'x' ? 1 : -1));
+            oktavPerKanal[(size_t) lage.kanal] = klaviatur.oktav;
+            visare ("OKTAV", "C" + juce::String (klaviatur.oktav));
+            andrat();
+            return true;
+        }
+        if (k == juce::KeyPress::spaceKey) { satt (params::id::spela, param (params::id::spela) > 0.5f ? 0.0f : 1.0f); return true; }
+        if (juce::String (Klaviatur::datorTangenter).containsChar (c)) { klaviatur.datorTangentbord(); return true; }
+        return false;
+    }
+    bool keyStateChanged (bool) override { return klaviatur.datorTangentbord(); }
+    void focusLost (FocusChangeType) override { klaviatur.slappDator(); }
 
     // Väljer vy och kanal (som att trycka på knapparna).
     void valjVy (Vy v, int kanal)
@@ -173,7 +199,11 @@ private:
         return ref;
     }
     Ratt& ratt (const juce::String& id, const char* text, bool inv = false)
-    { return nytt<Ratt> (id, stil::sv (text), visare, 12.0f, stil::RattTyp::liten, inv); }
+    {
+        auto& r = nytt<Ratt> (id, stil::sv (text), visare, 12.0f, stil::RattTyp::liten, inv);
+        r.visaVardet = true;
+        return r;
+    }
     Knapp& knapp (const juce::String& id, const char* text) { return nytt<Knapp> (id, stil::sv (text), visare); }
     Valjare& valj (const juce::String& id, const char* text, int bredd = 66) { return nytt<Valjare> (id, stil::sv (text), visare, bredd); }
 
@@ -284,88 +314,15 @@ private:
     }
 
     // -----------------------------------------------------------------------------------------
-    // Kanalväljaren
-
-    void byggKanalvaljaren()
-    {
-        using namespace km::stil;
-        const Rectangle<int> r (14, 96, 178, 352);
-        static const char* typ[] { "SEKVENSBAS", "ANDRA BASEN", "TRUMMOR", "STÖTAR OCH LEADS" };
-        for (int i = 0; i < 4; ++i)
-        {
-            const Rectangle<int> k (r.getX() + 10, r.getY() + 26 + i * 60, r.getWidth() - 20, 50);
-            yta (k, [this, i] (juce::Graphics& g, Rectangle<float> kr)
-            {
-                const bool aktiv = i == lage.kanal;
-                const bool tyst = param (params::id::kanal (i, "tyst")) > 0.5f;
-                kanalMinne[(size_t) i].rita (g, kr, (int) aktiv + 2 * (int) tyst, [aktiv, tyst, i] (juce::Graphics& gk, Rectangle<float> q)
-                {
-                    auto y = ritaKnapp (gk, q.reduced (1.5f), aktiv, aktiv ? Colour (0xff29191a) : Colour (0xff222227));
-                    ritaLysdiod (gk, { y.getX() + 10.0f, y.getY() + 11.0f }, 2.3f, farg::lysRod, aktiv ? 1.0f : 0.0f);
-                    tryck (gk, "KANAL " + juce::String (i + 1), { y.getX() + 18.0f, y.getY() + 7.0f, 90.0f, 8.0f }, 5.0f,
-                           juce::Justification::centredLeft, farg::silverMatt);
-                    if (tyst) tryck (gk, "TYST", { y.getRight() - 60.0f, y.getY() + 7.0f, 44.0f, 8.0f }, 5.0f, juce::Justification::centredRight, farg::tryckRott);
-                    rubrik (gk, kanalNamnet (i), { y.getX() + 8.0f, y.getY() + 18.0f, 150.0f, 12.0f }, 11.0f,
-                            aktiv ? farg::vitt : farg::silver, juce::Justification::centredLeft, aktiv ? 1.6f : 1.2f, 2.0f);
-                    tryck (gk, sv (typ[i]), { y.getX() + 8.0f, y.getY() + 33.0f, 150.0f, 8.0f }, 4.6f, juce::Justification::centredLeft, farg::silverMatt, 0.7f, 2.0f);
-                });
-                const auto y = kr.reduced (1.5f).translated (0.0f, aktiv ? 0.8f : 0.0f).withTrimmedBottom (aktiv ? 1.8f : 2.5f).reduced (0.6f, 0.4f);
-                ritaLedStapel (g, { y.getRight() - 9.0f, y.getY() + 6.0f, 4.0f, y.getHeight() - 12.0f }, kanalVisad[(size_t) i], 8, true);
-            },
-            [this, i]
-            {
-                return (juce::int64) (kanalVisad[(size_t) i] * 8.0f) + 16 * (i == lage.kanal) + 32 * (param (params::id::kanal (i, "tyst")) > 0.5f);
-            },
-            [this, i] (const juce::MouseEvent& e)
-            {
-                if (e.mods.isPopupMenu()) { satt (params::id::kanal (i, "tyst"), param (params::id::kanal (i, "tyst")) > 0.5f ? 0.0f : 1.0f); return; }
-                valjVy (lage.vy, i);
-            });
-        }
-
-        // Mönster för vald kanal: dra eller rulla för mönstret, klicka för varianten.
-        const float y = (float) r.getY() + 280.0f;
-        auto& m = yta ({ r.getX() + 12, (int) y + 14, 74, 30 }, [this] (juce::Graphics& g, Rectangle<float> rr)
-        {
-            const int v = (int) param (params::id::kanal (lage.kanal, "variant"));
-            const juce::String bokstav = v == 0 ? "A" : (v == 1 ? "B" : "-");
-            ritaSjusegment (g, rr, bokstav + juce::String (lage.monsterFor (lage.kanal) + 1).paddedLeft ('0', 2));
-        },
-        [this] { return (juce::int64) lage.monsterFor (lage.kanal) * 8 + (int) param (params::id::kanal (lage.kanal, "variant")) + lage.kanal * 1000; });
-        m.tryck = [this] (const juce::MouseEvent& e) { monsterStart = lage.monsterFor (lage.kanal); monsterStartY = e.position.y; monsterDrog = false; };
-        m.drag = [this] (const juce::MouseEvent& e)
-        {
-            const int d = (int) ((monsterStartY - e.position.y) / 8.0f);
-            if (d == 0 && ! monsterDrog) return;
-            monsterDrog = true;
-            satt (params::id::kanal (lage.kanal, "monster"), (float) juce::jlimit (1, antalMonster, monsterStart + 1 + d));
-        };
-        m.slapp = [this] (const juce::MouseEvent&)
-        {
-            if (! monsterDrog) satt (params::id::kanal (lage.kanal, "variant"), (float) (((int) param (params::id::kanal (lage.kanal, "variant")) + 1) % 3));
-        };
-        m.addMouseListener (this, false);
-        hjulMonster = &m;
-
-        yta ({ r.getX() + 100, (int) y + 12, 74, 40 }, [this] (juce::Graphics& g, Rectangle<float> rr)
-        {
-            const int v = (int) param (params::id::kanal (lage.kanal, "variant"));
-            const char* t[] { "A", "B", "A+B" };
-            for (int i = 0; i < 3; ++i) prov::diodMedText (g, { rr.getX() + 4.0f, rr.getY() + 8.0f + 12.0f * (float) i }, t[i], i == v);
-        },
-        [this] { return (juce::int64) param (params::id::kanal (lage.kanal, "variant")) + lage.kanal * 10; },
-        [this] (const juce::MouseEvent& e) { satt (params::id::kanal (lage.kanal, "variant"), (float) juce::jlimit (0, 2, (int) ((e.position.y - 2.0f) / 12.0f))); });
-    }
-
-    void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
-    {
-        if (e.eventComponent == hjulMonster)
-            satt (params::id::kanal (lage.kanal, "monster"),
-                  (float) juce::jlimit (1, antalMonster, lage.monsterFor (lage.kanal) + 1 + ((w.deltaY > 0.0f) != w.isReversed ? 1 : -1)));
-    }
-
-    // -----------------------------------------------------------------------------------------
     // Bildskärmen
+
+    // Skärmen ritas i sin designstorlek (glaset 640 × 304) och skalas ned till KANAL-sidans övre högra hörn.
+    static constexpr float skarmSkala = 0.62f;
+    static juce::AffineTransform skarmTransform()
+    {
+        const float b = (640.0f + 44.0f) * skarmSkala;
+        return juce::AffineTransform::translation (-208.0f, -92.0f).scaled (skarmSkala).translated (884.0f - b, 96.0f);
+    }
 
     void byggBildskarmen()
     {
@@ -375,15 +332,7 @@ private:
         // Bandlagret räknas högst i designupplösning (640 × 304, ungefär en VHS-bild) och sträcks ut på
         // Retina och vid förstoring; texten (OSD) ritas skarp ovanpå. Håller gränssnittet under CPU-målet.
         bild.setUpplosning (bildUpplosning, 640, 304);
-        yta ({ 892 - 216, 452 - 27, 160, 14 }, [this] (juce::Graphics& g, Rectangle<float> r)
-        {
-            const int b = (int) bandstyrka();
-            const char* t[] { "AV", "LITE", "MYCKET" };
-            const float x[] { 0.0f, 32.0f, 72.0f };
-            for (int i = 0; i < 3; ++i) prov::diodMedText (g, { r.getX() + 4.0f + x[i], r.getCentreY() }, t[i], i == b, farg::lysOrange);
-        },
-        [this] { return (juce::int64) bandstyrka(); },
-        [this] (const juce::MouseEvent& e) { sattBandstyrka ((Bandstyrka) (e.position.x < 34.0f ? 0 : (e.position.x < 72.0f ? 1 : 2))); });
+        bild.setTransform (skarmTransform());
     }
 
     // -----------------------------------------------------------------------------------------
@@ -478,7 +427,7 @@ private:
         {
             // Långa namn: mindre punkter (ned till 1,5) innan texten kortas.
             while (p > 1.5f && osd::bredd (t, p) > v.getWidth() - 12.0f) p -= 0.1f;
-            y += (2.0f - juce::jmin (2.0f, p)) * 3.5f;
+            y += (1.8f - juce::jmin (1.8f, p)) * 3.5f;   // kortare punkter: centrera i samma rad
             const int max = (int) ((v.getWidth() - 12.0f) / (6.0f * p));
             const auto text = t.substring (0, max);
             g.setColour (farg::vfd.withAlpha (0.25f));
@@ -486,8 +435,8 @@ private:
             g.setColour (diagnostikVarning && ! param ? farg::lysOrange : farg::vfd);
             osd::ritaRaw (g, text, v.getX() + 6.0f, y, p, 0.75f);
         };
-        skriv (rad1, v.getY() + 4.0f, 1.3f);
-        skriv (rad2, v.getY() + 15.0f, 2.0f);
+        skriv (rad1, v.getY() + 3.0f, 1.1f);
+        skriv (rad2, v.getY() + 16.0f, 1.8f);
         g.setGradientFill ({ juce::Colours::white.withAlpha (0.07f), v.getX(), v.getY(), juce::Colours::transparentWhite, v.getX(), v.getCentreY(), false });
         g.fillRect (v.withHeight (v.getHeight() * 0.5f).reduced (1.0f, 0.5f));
     }
@@ -561,7 +510,7 @@ private:
         using namespace km::stil;
         static const char* vyer[] { "KANAL", "SEKVENS", "MIXER", "EFFEKTER", "MODULATION", "LÅTEN" };
         for (int i = 0; i < 6; ++i)
-            yta ({ 24 + i * 92 - 2, 472, 90, 24 }, [this, i] (juce::Graphics& g, Rectangle<float> r)
+            vyKnappar.push_back (&yta ({ 24 + i * 92 - 2, 628, 90, 24 }, [this, i] (juce::Graphics& g, Rectangle<float> r)
             {
                 const bool a = (int) lage.vy == i;
                 auto y = ritaKnapp (g, r.reduced (2.0f), a);
@@ -569,7 +518,7 @@ private:
                 tryck (g, sv (vyer[i]), y.withTrimmedLeft (14.0f), 5.6f, juce::Justification::centred, a ? farg::vitt : farg::silver);
             },
             [this, i] { return (juce::int64) ((int) lage.vy == i); },
-            [this, i] (const juce::MouseEvent&) { valjVy ((Vy) i, lage.kanal); });
+            [this, i] (const juce::MouseEvent&) { valjVy ((Vy) i, lage.kanal); }));
     }
 
     // Ljudbanken (KANAL-vyn): ◀ ljudets namn ▶ SPARA i rattpanelens list. Klick på namnet ger listan.
@@ -597,8 +546,8 @@ private:
             };
             ljudYtor.push_back (tp);
         };
-        pil ({ 616, 474, 28, 20 }, -1);
-        auto& namn = yta ({ 646, 473, 200, 22 }, [this] (juce::Graphics& g, Rectangle<float> r)
+        pil ({ 616, 630, 28, 20 }, -1);
+        auto& namn = yta ({ 646, 629, 200, 22 }, [this] (juce::Graphics& g, Rectangle<float> r)
         {
             g.setColour (juce::Colours::black);
             g.fillRoundedRectangle (r.reduced (1.0f), 2.5f);
@@ -614,9 +563,9 @@ private:
         [this] { return (juce::int64) proc.ljud.aktuelltNamn (lage.kanal).hashCode() * 4 + lage.kanal; },
         [this] (const juce::MouseEvent&) { visaLjudMeny(); });
         ljudYtor.push_back (&namn);
-        pil ({ 848, 474, 28, 20 }, 1);
+        pil ({ 848, 630, 28, 20 }, 1);
         auto nere = std::make_shared<bool> (false);
-        auto& spara = yta ({ 880, 474, 56, 20 }, [nere] (juce::Graphics& g, Rectangle<float> r)
+        auto& spara = yta ({ 880, 630, 56, 20 }, [nere] (juce::Graphics& g, Rectangle<float> r)
         {
             auto a = ritaKnapp (g, r.reduced (1.5f), *nere);
             tryck (g, "SPARA", a, 5.2f);
@@ -670,132 +619,15 @@ private:
         }), true);
     }
 
-    struct Grupp
-    {
-        juce::String titel;
-        std::vector<Reglage*> k;
-        std::function<bool()> synlig;     // tom = alltid
-        bool sammaX = false;              // börjar där förra gruppen började (alternativ till den)
-        int mellanrum = 22;
-        float x0 = 0, x1 = 0;
-        bool syns() const { return ! synlig || synlig(); }
-
-        Grupp (juce::String t, std::vector<Reglage*> kk, std::function<bool()> s = {}, bool samma = false, int mell = 22)
-            : titel (std::move (t)), k (std::move (kk)), synlig (std::move (s)), sammaX (samma), mellanrum (mell) {}
-    };
-    using Rad = std::vector<Grupp>;
-    std::array<std::array<Rad, 2>, antalVyer> vyInnehall;
-
     int vyIndex() const
     {
         if (lage.vy == Vy::Kanal) return lage.kanal;
         return 3 + (int) lage.vy;
     }
+    bool kanalVyn() const { return lage.vy == Vy::Kanal; }
 
-    void byggVyerna()
-    {
-        using namespace km::params;
-        auto& v = vyInnehall;
-
-        // --- Kolvbasen och Kolvbas 2
-        for (int k = 0; k < 2; ++k)
-        {
-            auto kid = [k] (const char* p) { return id::kolv (k, p); };
-            v[(size_t) k][0] = {
-                { "OSCILLATOR", { &ratt (kid ("vag"), "Vågform"), &ratt (kid ("pulsbredd"), "Pulsbredd"), &ratt (kid ("sub"), "Sub"),
-                                  &ratt (kid ("brus"), "Brus"), &knapp (kid ("synk"), "Synk") } },
-                { "OSC 2", { &ratt (kid ("osc2Niva"), "Nivå"), &ratt (kid ("osc2Halvtoner"), "Stämning"), &ratt (kid ("osc2Fin"), "Fin") } },
-                { "FILTER", { &valj (kid ("filterTyp"), "Typ"), &ratt (kid ("cutoff"), "Brytfrekvens"), &ratt (kid ("resonans"), "Resonans"),
-                              &ratt (kid ("envMangd"), "Env-djup"), &ratt (kid ("filterFall"), "Env-fall"), &ratt (kid ("drive"), "Drive"),
-                              &ratt (kid ("accent"), "Accent") } } };
-            v[(size_t) k][1] = {
-                { "ENVELOPE", { &ratt (kid ("fall"), "Fall"), &ratt (kid ("hall"), "Håll"), &ratt (kid ("slapp"), "Släpp"), &ratt (kid ("glid"), "Glid") } } };
-            if (k == 1)
-                v[1][1].push_back ({ stil::sv ("FÖLJ KOLVBASEN"), { &knapp (id::folj, "Följ"), &ratt (id::forskjutning, "Förskjutning"),
-                                                                    &ratt (id::transponering, "Transponering") } });
-            laggTillKanal (v[(size_t) k][1], k);
-        }
-
-        // --- Stampverket: kit och trumväljaren överst, vald trumma, Drivet och kanalen under
-        {
-            Grupp trummor { "TRUMMOR", {} };
-            for (int t = 0; t < antalSpar; ++t) trummor.k.push_back (&trumKnapp (t));
-            v[2][0] = { { "KIT", { &valj (id::kit, "Kit"), &knapp (id::kantslag, "Kantslag") } }, trummor };
-            for (int t = 0; t < antalSpar; ++t)
-                v[2][1].push_back ({ "TRUMMA " + trumKort (t) + " " + stil::sv ("·") + " " + versaler (stil::sv (trumNamn ((Trumma) t))),
-                                     { &ratt (id::trumma (t, "stamning"), "Stämning"), &ratt (id::trumma (t, "klang"), "Klang"),
-                                       &ratt (id::trumma (t, "niva"), "Nivå"), &knapp (id::trumma (t, "tyst"), "Tyst") },
-                                     [this, t] { return lage.valdTrumma == t; }, t > 0 });
-            laggTillKanal (v[2][1], 2);
-        }
-
-        // --- Hugget
-        v[3][0] = {
-            { "HUGGET", { &valj (id::hu ("lage"), "Läge", 76), &valj (id::hu ("ackord"), "Ackord", 76), &ratt (id::hu ("oktav"), "Oktav"),
-                          &ratt (id::hu ("klang"), "Klang"), &ratt (id::hu ("sankning"), "Sänkning"), &ratt (id::hu ("bredd"), "Bredd") } },
-            { "ENVELOPE", { &ratt (id::hu ("attack"), "Attack"), &ratt (id::hu ("fall"), "Fall"), &ratt (id::hu ("hall"), "Håll"), &ratt (id::hu ("slapp"), "Släpp") } } };
-        laggTillKanal (v[3][1], 3);
-
-        // --- Sekvens: mönstret per kanal till vänster, rutnätet (Sekvens) till höger
-        for (int k = 0; k < antalKanaler; ++k)
-        {
-            auto vis = [this, k] { return lage.kanal == k; };
-            v[4][0].push_back ({ stil::sv ("MÖNSTER"), { &valj (id::kanal (k, "monster"), "Mönster", 58), &valj (id::kanal (k, "variant"), "Variant", 58),
-                                                         &ratt (id::kanal (k, "langd"), "Längd") }, vis, k > 0 });
-        }
-        v[4][1] = { { "TAKT", { &ratt (id::gung, "Gung"),
-                                handling ("Kopiera A→B", [this] { kopieraAB(); }), handling ("Rensa", [this] { rensa(); }) } } };
-
-        // --- Mixern
-        for (int k = 0; k < antalKanaler; ++k)
-            v[5][(size_t) (k / 2)].push_back ({ kanalNamnet (k), { &ratt (id::kanal (k, "niva"), "Nivå"), &ratt (id::kanal (k, "pan"), "Pan"),
-                                                                   &ratt (id::kanal (k, "sandA"), "→ Grindrum"), &ratt (id::kanal (k, "sandB"), "→ Ekot"),
-                                                                   &knapp (id::kanal (k, "tyst"), "Tyst"), &knapp (id::kanal (k, "solo"), "Solo") } });
-        v[5][0].push_back ({ "TAKTVERKET", { &ratt (id::grundton, "Grundton"), &ratt (id::gung, "Gung") } });
-
-        // --- Effekterna
-        v[6][0] = {
-            { "GRINDRUMMET", { &ratt (id::fx ("gr", "storlek"), "Storlek"), &ratt (id::fx ("gr", "hallTid"), "Hålltid"),
-                               &ratt (id::fx ("gr", "ton"), "Ton"), &ratt (id::fx ("gr", "niva"), "Nivå") } },
-            { "EKOT", { &valj (id::fx ("eko", "tid"), "Tid"), &ratt (id::fx ("eko", "aterkoppling"), "Återkoppling"), &ratt (id::fx ("eko", "ton"), "Ton"),
-                        &valj (id::fx ("eko", "lage"), "Läge"), &knapp (id::fx ("eko", "pingpong"), "Ping-pong"), &ratt (id::fx ("eko", "niva"), "Nivå") } },
-            { "SVAJET", { &valj (id::fx ("svaj", "lage"), "Läge"), &ratt (id::fx ("svaj", "mangd"), "Mängd") } } };
-        v[6][1] = {
-            { stil::sv ("KLÄMMAN"), { &ratt (id::fx ("klam", "troskel"), "Tröskel"), &ratt (id::fx ("klam", "kvot"), "Kvot"),
-                                      &ratt (id::fx ("klam", "attack"), "Attack"), &ratt (id::fx ("klam", "slapp"), "Släpp"),
-                                      &ratt (id::fx ("klam", "pump"), "Pump"), &ratt (id::fx ("klam", "efter"), "Efter"), &reduktionsMatare() } },
-            { "KASSETTEN", { &valj (id::fx ("kass", "kvalitet"), "Band", 50), &ratt (id::fx ("kass", "slitage"), "Slitage") } } };
-
-        // --- Modulationen
-        for (int n = 0; n < 2; ++n)
-            v[7][0].push_back ({ "LFO " + juce::String (n + 1), { &valj (id::lfo (n, "form"), "Form"), &ratt (id::lfo (n, "hz"), "Hastighet"),
-                                                                 &valj (id::lfo (n, "synk"), "Synk") } });
-        for (int n = 0; n < 2; ++n)
-            v[7][0].push_back ({ "ENV " + juce::String (n + 1), { &ratt (id::menv (n, "attack"), "Attack"), &ratt (id::menv (n, "fall"), "Fall"),
-                                                                 &ratt (id::menv (n, "hall"), "Håll"), &ratt (id::menv (n, "slapp"), "Släpp"),
-                                                                 &valj (id::menv (n, "utlosare"), "Utlöses av", 70) } });
-        for (int n = 0; n < antalKopplingar; ++n)
-        {
-            auto& kalla = valj (id::mod (n, "kalla"), "Källa", 58);
-            auto& mal = valj (id::mod (n, "mal"), "Mål", 72);
-            auto& mangd = ratt (id::mod (n, "mangd"), "Mängd");
-            mangd.bredd = 46;
-            v[7][1].push_back ({ "KOPPLING " + juce::String (n + 1), { &kalla, &mal, &mangd }, {}, false, 10 });
-        }
-
-        // --- Låten: låtläget och raderna (LatVy till höger)
-        v[8][0] = { { stil::sv ("LÅTLÄGET"), { &knapp (id::latLage, "Låtläget"), &valj (id::latSlut, "Vid slutet", 62) } } };
-        v[8][1] = { { "VALD RAD", { handling ("Kopiera", [this] { latKopiera(); }), handling ("Ta bort", [this] { latTaBort(); }),
-                                    handling ("Hämta", [this] { latHamta(); }) } } };
-    }
-
-    void laggTillKanal (Rad& rad, int k)
-    {
-        using namespace km::params;
-        rad.push_back ({ "DRIVET", { &valj (id::kanal (k, "drivetLage"), "Läge"), &ratt (id::kanal (k, "drivetMangd"), "Mängd") } });
-        rad.push_back ({ "KANAL", { &ratt (id::kanal (k, "niva"), "Nivå"), &ratt (id::kanal (k, "pan"), "Pan"),
-                                    &ratt (id::kanal (k, "sandA"), "→ Grindrum"), &ratt (id::kanal (k, "sandB"), "→ Ekot") } });
-    }
+    // Sidornas nummer: 0 SEKVENS, 1 MIXER, 2 EFFEKTER, 3 MODULATION, 4 LÅTEN, 5–8 KANAL för kanal 1–4.
+    int sidIndex() const { return kanalVyn() ? 5 + lage.kanal : (int) lage.vy - 1; }
 
     Reglage* handling (const char* text, std::function<void()> gor)
     {
@@ -829,16 +661,19 @@ private:
         return *p;
     }
 
-    Tryckyta& reduktionsMatare()
+    Tryckyta& reduktionsMatare (bool stor = false)
     {
         auto u = std::make_unique<Tryckyta>();
-        u->bredd = 30;
-        u->etikettText = "RED.";
+        u->bredd = stor ? 60 : 30;
+        u->etikettText = stor ? "REDUKTION" : "RED.";
+        if (stor) u->setSize (60, 200);
         auto* p = u.get();
-        u->rita = [this, p] (juce::Graphics& g, Rectangle<float> r)
+        u->rita = [this, p, stor] (juce::Graphics& g, Rectangle<float> r)
         {
-            stil::ritaLedStapel (g, { r.getCentreX() - 2.5f, 4.0f, 5.0f, 32.0f }, juce::jlimit (0.0f, 1.0f, reduktion / 18.0f), 8, true);
-            etikett (g, p->etikettText, { 0.0f, 40.0f, r.getWidth(), 8.0f });
+            const float h = stor ? r.getHeight() - 22.0f : 32.0f;
+            stil::ritaLedStapel (g, { r.getCentreX() - (stor ? 5.0f : 2.5f), 4.0f, stor ? 10.0f : 5.0f, h }, juce::jlimit (0.0f, 1.0f, reduktion / 18.0f), stor ? 18 : 8, true);
+            etikett (g, p->etikettText, { 0.0f, h + 8.0f, r.getWidth(), 8.0f });
+            if (stor) etikett (g, juce::String (reduktion, 1).replace (".", ",") + " DB", { 0.0f, h + 18.0f - 8.0f + 8.0f, r.getWidth(), 7.0f }, 4.4f, farg::lysOrange);
         };
         u->lage = [this] { return (juce::int64) (reduktion * 2.0f); };
         addChildComponent (*u);
@@ -846,47 +681,330 @@ private:
         return *p;
     }
 
-    void layoutVyerna()
-    {
-        for (auto& vy : vyInnehall)
-            for (int rad = 0; rad < 2; ++rad)
-            {
-                const int cy = falt.getY() + (rad == 0 ? 30 : 89);
-                float x = (float) falt.getX() + (vy.data() == vyInnehall[4].data() ? 10.0f : 16.0f);
-                float forraX0 = x;
-                for (auto& gr : vy[(size_t) rad])
-                {
-                    if (gr.sammaX) x = forraX0;
-                    gr.x0 = x;
-                    forraX0 = x;
-                    for (auto* k : gr.k)
-                    {
-                        k->setBounds ((int) x, cy - 19, k->cellBredd(), Reglage::hojd);
-                        x += (float) k->cellBredd();
-                    }
-                    gr.x1 = x;
-                    x += (float) gr.mellanrum;
-                }
-            }
-    }
-
     void visaVyn()
     {
-        const int aktuell = vyIndex();
-        for (int i = 0; i < antalVyer; ++i)
-            for (auto& rad : vyInnehall[(size_t) i])
-                for (auto& gr : rad)
-                {
-                    const bool syns = i == aktuell && gr.syns();
-                    for (auto* k : gr.k) k->setVisible (syns);
-                }
-        // En komponent kan finnas i flera grupper (Gung): visa den om någon synlig grupp har den.
-        for (auto& rad : vyInnehall[(size_t) aktuell])
-            for (auto& gr : rad)
-                if (gr.syns()) for (auto* k : gr.k) k->setVisible (true);
-        sekvens.setVisible (lage.vy == Vy::Sekvens);
-        for (auto* y : ljudYtor) y->setVisible (lage.vy == Vy::Kanal);
-        latVy.setVisible (lage.vy == Vy::Laten);
+        const int sida = sidIndex();
+        for (auto& sk : sidKomp) sk.c->setVisible (sk.sida == sida && (! sk.synlig || sk.synlig()));
+        for (auto* y : ljudYtor) y->setVisible (kanalVyn());
+        for (auto* c : kanalYtor) c->setVisible (kanalVyn());
+        for (auto* c : miniYtor) c->setVisible (true);
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Sidorna (SEKVENS, MIXER, EFFEKTER, MODULATION, LÅTEN)
+
+    struct Lada { int sida; Rectangle<float> r; juce::String titel; };
+    struct SidKomp { int sida; juce::Component* c; std::function<bool()> synlig; };
+    std::vector<Lada> lador;
+    std::vector<SidKomp> sidKomp;
+
+    void lada (int sida, Rectangle<float> r, const juce::String& titel) { lador.push_back ({ sida, r, titel }); }
+
+    // Lägger en komponent på en sida, centrerad kring cx med överkanten y (designkoordinater).
+    template <typename C>
+    C& pa (int sida, C& c, float cx, float y, std::function<bool()> synlig = {})
+    {
+        int w = 0, h = 0;
+        if constexpr (std::is_base_of_v<Reglage, C>) { w = c.cellBredd(); h = Reglage::hojd; }
+        if constexpr (std::is_same_v<C, Tryckyta>) if (c.getHeight() > 0) { w = c.getWidth(); h = c.getHeight(); }
+        if constexpr (std::is_same_v<C, Ratt>) h = c.hojdBehov();
+        if (w <= 0) { w = c.getWidth(); h = c.getHeight(); }
+        c.setBounds (juce::roundToInt (cx - (float) w * 0.5f), juce::roundToInt (y), w, h);
+        sidKomp.push_back ({ sida, &c, std::move (synlig) });
+        return c;
+    }
+    Ratt& stor (const juce::String& id, const char* text, float r = 17.0f)
+    {
+        auto& ra = nytt<Ratt> (id, stil::sv (text), visare, r, stil::RattTyp::liten);
+        ra.visaVardet = true;
+        return ra;
+    }
+    Fader& fader (const juce::String& id, const char* text, float x, float y, float h, int sida)
+    {
+        auto& f = nytt<Fader> (id, stil::sv (text), visare);
+        f.setBounds ((int) x, (int) y, 44, (int) h);
+        sidKomp.push_back ({ sida, &f, {} });
+        return f;
+    }
+
+    void byggSidorna()
+    {
+        using namespace km::params;
+        enum { sSekvens = 0, sMixer, sEffekter, sModulation, sLaten };
+        const float x0 = (float) sidYta.getX() + 8.0f, y0 = (float) sidYta.getY() + 4.0f;   // 22, 128
+
+        // --- SEKVENS: verktygsraden och rutnätet
+        lada (sSekvens, { x0, y0, 862.0f, 84.0f }, stil::sv ("MÖNSTER"));
+        for (int k = 0; k < antalKanaler; ++k)
+        {
+            auto vis = [this, k] { return lage.kanal == k; };
+            pa (sSekvens, valj (id::kanal (k, "monster"), "Mönster", 70), x0 + 60.0f, y0 + 20.0f, vis);
+            pa (sSekvens, valj (id::kanal (k, "variant"), "Variant", 70), x0 + 140.0f, y0 + 20.0f, vis);
+            pa (sSekvens, ratt (id::kanal (k, "langd"), "Längd"), x0 + 216.0f, y0 + 20.0f, vis);
+        }
+        pa (sSekvens, ratt (id::gung, "Gung"), x0 + 290.0f, y0 + 20.0f);
+        pa (sSekvens, *handling ("Kopiera A→B", [this] { kopieraAB(); }), x0 + 370.0f, y0 + 20.0f);
+        pa (sSekvens, *handling ("Rensa", [this] { rensa(); }), x0 + 430.0f, y0 + 20.0f);
+        sekvens.setBounds ((int) x0, (int) y0 + 92, 862, 430);
+        sidKomp.push_back ({ sSekvens, &sekvens, {} });
+
+        // --- MIXER: en remsa per kanal och Taktverket
+        for (int k = 0; k < antalKanaler; ++k)
+        {
+            const float x = x0 + (float) k * 176.0f, cx = x + 84.0f;
+            lada (sMixer, { x, y0, 168.0f, 522.0f }, kanalNamnet (k));
+            pa (sMixer, valj (id::kanal (k, "drivetLage"), "Drivet", 76), x + 46.0f, y0 + 26.0f);
+            pa (sMixer, ratt (id::kanal (k, "drivetMangd"), "Mängd"), x + 124.0f, y0 + 26.0f);
+            pa (sMixer, stor (id::kanal (k, "sandA"), "→ Grindrum", 16.0f), x + 46.0f, y0 + 100.0f);
+            pa (sMixer, stor (id::kanal (k, "sandB"), "→ Ekot", 16.0f), x + 124.0f, y0 + 100.0f);
+            pa (sMixer, stor (id::kanal (k, "pan"), "Pan", 16.0f), cx, y0 + 190.0f);
+            fader (id::kanal (k, "niva"), "Nivå", x + 42.0f, y0 + 282.0f, 180.0f, sMixer);
+            pa (sMixer, nivaStapel (k), x + 118.0f, y0 + 290.0f);
+            pa (sMixer, knapp (id::kanal (k, "tyst"), "Tyst"), x + 32.0f, y0 + 464.0f);
+            pa (sMixer, knapp (id::kanal (k, "solo"), "Solo"), x + 84.0f, y0 + 464.0f);
+            pa (sMixer, knapp (id::kanal (k, "midi"), "MIDI"), x + 136.0f, y0 + 464.0f);
+        }
+        {
+            const float x = x0 + 4.0f * 176.0f;
+            lada (sMixer, { x, y0, 158.0f, 522.0f }, "TAKT OCH MASTER");
+            pa (sMixer, stor (id::grundton, "Grundton", 18.0f), x + 79.0f, y0 + 26.0f);
+            pa (sMixer, stor (id::gung, "Gung", 18.0f), x + 79.0f, y0 + 126.0f);
+            fader (id::master, "Master", x + 57.0f, y0 + 282.0f, 180.0f, sMixer);
+        }
+
+        // --- EFFEKTER: rummet, ekot och svajet överst, Klämman och Kassetten under
+        {
+            const float y2 = y0 + 266.0f;
+            lada (sEffekter, { x0, y0, 268.0f, 258.0f }, "GRINDRUMMET");
+            pa (sEffekter, stor (id::fx ("gr", "storlek"), "Storlek"), x0 + 72.0f, y0 + 30.0f);
+            pa (sEffekter, stor (id::fx ("gr", "hallTid"), "Hålltid"), x0 + 196.0f, y0 + 30.0f);
+            pa (sEffekter, stor (id::fx ("gr", "ton"), "Ton"), x0 + 72.0f, y0 + 142.0f);
+            pa (sEffekter, stor (id::fx ("gr", "niva"), "Nivå"), x0 + 196.0f, y0 + 142.0f);
+
+            const float ex = x0 + 276.0f;
+            lada (sEffekter, { ex, y0, 336.0f, 258.0f }, "EKOT");
+            pa (sEffekter, valj (id::fx ("eko", "tid"), "Tid", 90), ex + 60.0f, y0 + 30.0f);
+            pa (sEffekter, valj (id::fx ("eko", "lage"), "Läge", 90), ex + 168.0f, y0 + 30.0f);
+            pa (sEffekter, knapp (id::fx ("eko", "pingpong"), "Ping-pong"), ex + 276.0f, y0 + 30.0f);
+            pa (sEffekter, stor (id::fx ("eko", "aterkoppling"), "Återkoppling"), ex + 60.0f, y0 + 142.0f);
+            pa (sEffekter, stor (id::fx ("eko", "ton"), "Ton"), ex + 168.0f, y0 + 142.0f);
+            pa (sEffekter, stor (id::fx ("eko", "niva"), "Nivå"), ex + 276.0f, y0 + 142.0f);
+
+            const float sx = x0 + 620.0f;
+            lada (sEffekter, { sx, y0, 242.0f, 258.0f }, "SVAJET");
+            pa (sEffekter, valj (id::fx ("svaj", "lage"), "Läge", 100), sx + 121.0f, y0 + 30.0f);
+            pa (sEffekter, stor (id::fx ("svaj", "mangd"), "Mängd", 22.0f), sx + 121.0f, y0 + 120.0f);
+
+            lada (sEffekter, { x0, y2, 552.0f, 256.0f }, stil::sv ("KLÄMMAN"));
+            const char* kl[] { "troskel", "kvot", "attack", "slapp", "pump", "efter" };
+            const char* kn[] { "Tröskel", "Kvot", "Attack", "Släpp", "Pump", "Efter" };
+            for (int i = 0; i < 6; ++i)
+                pa (sEffekter, stor (id::fx ("klam", kl[i]), kn[i]), x0 + 72.0f + (float) (i % 3) * 112.0f, y2 + 28.0f + (float) (i / 3) * 112.0f);
+            pa (sEffekter, reduktionsMatare (true), x0 + 470.0f, y2 + 30.0f);
+
+            const float kx = x0 + 560.0f;
+            lada (sEffekter, { kx, y2, 302.0f, 256.0f }, "KASSETTEN");
+            pa (sEffekter, valj (id::fx ("kass", "kvalitet"), "Bandhastighet", 90), kx + 80.0f, y2 + 40.0f);
+            pa (sEffekter, stor (id::fx ("kass", "slitage"), "Slitage", 24.0f), kx + 210.0f, y2 + 28.0f);
+        }
+
+        // --- MODULATION: LFO:erna, envelopes med faders och kopplingarna
+        for (int n = 0; n < 2; ++n)
+        {
+            const float y = y0 + (float) n * 266.0f;
+            lada (sModulation, { x0, y, 250.0f, 256.0f }, "LFO " + juce::String (n + 1));
+            pa (sModulation, valj (id::lfo (n, "form"), "Form", 100), x0 + 66.0f, y + 34.0f);
+            pa (sModulation, valj (id::lfo (n, "synk"), "Takt", 100), x0 + 66.0f, y + 120.0f);
+            pa (sModulation, stor (id::lfo (n, "hz"), "Hastighet", 24.0f), x0 + 184.0f, y + 40.0f);
+
+            const float ex = x0 + 258.0f;
+            lada (sModulation, { ex, y, 284.0f, 256.0f }, "ENVELOPE " + juce::String (n + 1));
+            const char* ev[] { "attack", "fall", "hall", "slapp" };
+            const char* en[] { "A", "D", "S", "R" };
+            for (int i = 0; i < 4; ++i) fader (id::menv (n, ev[i]), en[i], ex + 12.0f + (float) i * 48.0f, y + 26.0f, 210.0f, sModulation);
+            pa (sModulation, valj (id::menv (n, "utlosare"), "Utlöses av", 76), ex + 240.0f, y + 90.0f);
+        }
+        {
+            const float mx = x0 + 550.0f;
+            lada (sModulation, { mx, y0, 312.0f, 522.0f }, "KOPPLINGARNA");
+            for (int n = 0; n < antalKopplingar; ++n)
+            {
+                const float y = y0 + 24.0f + (float) n * 82.0f;
+                pa (sModulation, valj (id::mod (n, "kalla"), "Källa", 92), mx + 58.0f, y);
+                pa (sModulation, valj (id::mod (n, "mal"), "Mål", 112), mx + 170.0f, y);
+                pa (sModulation, ratt (id::mod (n, "mangd"), "Mängd"), mx + 270.0f, y);
+            }
+        }
+
+        // --- LÅTEN: verktygsraden och raderna
+        lada (sLaten, { x0, y0, 862.0f, 84.0f }, stil::sv ("LÅTEN"));
+        pa (sLaten, knapp (id::latLage, "Låtläget"), x0 + 50.0f, y0 + 20.0f);
+        pa (sLaten, valj (id::latSlut, "Vid slutet", 76), x0 + 130.0f, y0 + 20.0f);
+        pa (sLaten, *handling ("Kopiera", [this] { latKopiera(); }), x0 + 250.0f, y0 + 20.0f);
+        pa (sLaten, *handling ("Ta bort", [this] { latTaBort(); }), x0 + 310.0f, y0 + 20.0f);
+        pa (sLaten, *handling ("Hämta", [this] { latHamta(); }), x0 + 370.0f, y0 + 20.0f);
+        latVy.setBounds ((int) x0, (int) y0 + 92, 862, 430);
+        sidKomp.push_back ({ sLaten, &latVy, {} });
+    }
+
+    // KANAL-sidorna, en per kanal: skärmen uppe till höger, ljudets lådor runt och under den.
+    void byggKanalsidor()
+    {
+        using namespace km::params;
+        const float x0 = 22.0f, y0 = 96.0f, bred = 862.0f, vanster = 430.0f;
+        const float yRad3 = 312.0f, yRad4 = 416.0f, yRad5 = 524.0f;
+        // Lägger reglagen jämnt fördelade i en låda (överkant y).
+        auto rad = [this] (int sida, Rectangle<float> l, std::initializer_list<Reglage*> k, float y)
+        {
+            const float steg = l.getWidth() / (float) k.size();
+            float cx = l.getX() + steg * 0.5f;
+            for (auto* r : k)
+            {
+                if (auto* ra = dynamic_cast<Ratt*> (r)) pa (sida, *ra, cx, y);
+                else pa (sida, *r, cx, y);
+                cx += steg;
+            }
+        };
+        auto kanalLada = [&] (int sida, int k)
+        {
+            const Rectangle<float> l (x0, yRad5, bred, 94.0f);
+            lada (sida, l, "KANAL");
+            rad (sida, l, { &valj (id::kanal (k, "monster"), "Mönster", 70), &valj (id::kanal (k, "variant"), "Variant", 70),
+                            &ratt (id::kanal (k, "langd"), "Längd"), &ratt (id::kanal (k, "niva"), "Nivå"), &ratt (id::kanal (k, "pan"), "Pan"),
+                            &ratt (id::kanal (k, "sandA"), "→ Grindrum"), &ratt (id::kanal (k, "sandB"), "→ Ekot"),
+                            &knapp (id::kanal (k, "midi"), "MIDI-spel") }, yRad5 + 24.0f);
+        };
+        auto drivetLada = [&] (int sida, int k, Rectangle<float> l)
+        {
+            lada (sida, l, "DRIVET");
+            rad (sida, l, { &valj (id::kanal (k, "drivetLage"), "Läge", 90), &stor (id::kanal (k, "drivetMangd"), "Mängd", 15.0f) }, l.getY() + 22.0f);
+        };
+
+        // --- Kolvbasen och Kolvbas 2
+        for (int k = 0; k < 2; ++k)
+        {
+            const int sida = 5 + k;
+            auto kid = [k] (const char* p) { return id::kolv (k, p); };
+            const Rectangle<float> osc (x0, y0, vanster, 100.0f), osc2 (x0, y0 + 108.0f, vanster, 100.0f);
+            lada (sida, osc, "OSCILLATOR");
+            rad (sida, osc, { &stor (kid ("vag"), "Vågform", 15.0f), &stor (kid ("pulsbredd"), "Pulsbredd", 15.0f), &stor (kid ("sub"), "Sub", 15.0f),
+                              &stor (kid ("brus"), "Brus", 15.0f), &knapp (kid ("synk"), "Synk") }, y0 + 22.0f);
+            lada (sida, osc2, "OSC 2");
+            rad (sida, osc2, { &stor (kid ("osc2Niva"), "Nivå", 15.0f), &stor (kid ("osc2Halvtoner"), "Stämning", 15.0f), &stor (kid ("osc2Fin"), "Fin", 15.0f) }, osc2.getY() + 22.0f);
+            const Rectangle<float> filt (x0, yRad3, bred, 96.0f);
+            lada (sida, filt, "FILTER");
+            rad (sida, filt, { &valj (kid ("filterTyp"), "Typ", 80), &stor (kid ("cutoff"), "Brytfrekvens", 15.0f), &stor (kid ("resonans"), "Resonans", 15.0f),
+                               &stor (kid ("envMangd"), "Env-djup", 15.0f), &stor (kid ("filterFall"), "Env-fall", 15.0f), &stor (kid ("drive"), "Drive", 15.0f),
+                               &stor (kid ("accent"), "Accent", 15.0f) }, yRad3 + 22.0f);
+            const Rectangle<float> env (x0, yRad4, vanster, 100.0f);
+            lada (sida, env, "ENVELOPE");
+            rad (sida, env, { &stor (kid ("fall"), "Fall", 15.0f), &stor (kid ("hall"), "Håll", 15.0f), &stor (kid ("slapp"), "Släpp", 15.0f), &stor (kid ("glid"), "Glid", 15.0f) }, yRad4 + 22.0f);
+            if (k == 1)
+            {
+                drivetLada (sida, k, { x0 + 438.0f, yRad4, 180.0f, 100.0f });
+                const Rectangle<float> folj (x0 + 626.0f, yRad4, 236.0f, 100.0f);
+                lada (sida, folj, stil::sv ("FÖLJ KOLVBASEN"));
+                rad (sida, folj, { &knapp (id::folj, "Följ"), &ratt (id::forskjutning, "Förskjutning"), &ratt (id::transponering, "Transponering") }, yRad4 + 24.0f);
+            }
+            else drivetLada (sida, k, { x0 + 438.0f, yRad4, 424.0f, 100.0f });
+            kanalLada (sida, k);
+        }
+
+        // --- Stampverket
+        {
+            const int sida = 5 + (int) Kanal::Stampverket;
+            const Rectangle<float> kit (x0, y0, vanster, 100.0f);
+            lada (sida, kit, "KIT");
+            rad (sida, kit, { &valj (id::kit, "Kit", 100), &knapp (id::kantslag, "Kantslag") }, y0 + 24.0f);
+            drivetLada (sida, (int) Kanal::Stampverket, { x0, y0 + 108.0f, vanster, 100.0f });
+            const Rectangle<float> tr (x0, yRad3, bred, 96.0f);
+            lada (sida, tr, "TRUMMOR");
+            const float steg = bred / (float) antalSpar;
+            for (int t = 0; t < antalSpar; ++t) pa (sida, trumKnapp (t), x0 + steg * ((float) t + 0.5f), yRad3 + 26.0f);
+            const Rectangle<float> vald (x0, yRad4, bred, 100.0f);
+            lada (sida, vald, "VALD TRUMMA");
+            for (int t = 0; t < antalSpar; ++t)
+            {
+                auto vis = [this, t] { return lage.valdTrumma == t; };
+                const Rectangle<float> l (x0 + 200.0f, yRad4, bred - 200.0f, 100.0f);
+                const float st = l.getWidth() / 4.0f;
+                pa (sida, stor (id::trumma (t, "stamning"), "Stämning", 15.0f), l.getX() + st * 0.5f, yRad4 + 22.0f, vis);
+                pa (sida, stor (id::trumma (t, "klang"), "Klang", 15.0f), l.getX() + st * 1.5f, yRad4 + 22.0f, vis);
+                pa (sida, stor (id::trumma (t, "niva"), "Nivå", 15.0f), l.getX() + st * 2.5f, yRad4 + 22.0f, vis);
+                pa (sida, knapp (id::trumma (t, "tyst"), "Tyst"), l.getX() + st * 3.5f, yRad4 + 26.0f, vis);
+            }
+            auto namn = std::make_unique<Tryckyta>();
+            namn->setSize (180, 60);
+            namn->rita = [this] (juce::Graphics& g, Rectangle<float> r)
+            {
+                stil::rubrik (g, trumKort (lage.valdTrumma), r.withHeight (26.0f), 22.0f, farg::vitt, juce::Justification::centredLeft, 2.2f, 2.0f);
+                stil::tryck (g, versaler (stil::sv (trumNamn ((Trumma) lage.valdTrumma))), r.withTrimmedTop (34.0f).withHeight (8.0f), 5.6f,
+                             juce::Justification::centredLeft, farg::silver);
+            };
+            namn->lage = [this] { return (juce::int64) lage.valdTrumma; };
+            auto* np = namn.get();
+            addChildComponent (*np);
+            ytor.push_back (std::move (namn));
+            pa (sida, *np, x0 + 104.0f, yRad4 + 28.0f);
+            kanalLada (sida, (int) Kanal::Stampverket);
+        }
+
+        // --- Hugget
+        {
+            const int sida = 5 + (int) Kanal::Hugget;
+            const Rectangle<float> hu (x0, y0, vanster, 208.0f);
+            lada (sida, hu, "HUGGET");
+            rad (sida, hu, { &valj (id::hu ("lage"), "Läge", 110), &valj (id::hu ("ackord"), "Ackord", 110), &ratt (id::hu ("oktav"), "Oktav") }, y0 + 26.0f);
+            rad (sida, hu, { &stor (id::hu ("klang"), "Klang", 17.0f), &stor (id::hu ("sankning"), "Sänkning", 17.0f), &stor (id::hu ("bredd"), "Bredd", 17.0f) }, y0 + 104.0f);
+            const Rectangle<float> env (x0, yRad3, bred, 96.0f);
+            lada (sida, env, "ENVELOPE");
+            rad (sida, env, { &stor (id::hu ("attack"), "Attack", 15.0f), &stor (id::hu ("fall"), "Fall", 15.0f), &stor (id::hu ("hall"), "Håll", 15.0f),
+                              &stor (id::hu ("slapp"), "Släpp", 15.0f) }, yRad3 + 22.0f);
+            drivetLada (sida, (int) Kanal::Hugget, { x0, yRad4, bred, 100.0f });
+            kanalLada (sida, (int) Kanal::Hugget);
+        }
+    }
+
+    // Kanalens nivå som lysdiodsstapel (MIXER).
+    Tryckyta& nivaStapel (int k)
+    {
+        auto u = std::make_unique<Tryckyta>();
+        u->setSize (16, 160);
+        u->rita = [this, k] (juce::Graphics& g, Rectangle<float> r) { stil::ritaLedStapel (g, r.reduced (2.0f, 2.0f), kanalVisad[(size_t) k], 16, true); };
+        u->lage = [this, k] { return (juce::int64) (kanalVisad[(size_t) k] * 16.0f); };
+        auto* p = u.get();
+        addChildComponent (*p);
+        ytor.push_back (std::move (u));
+        return *p;
+    }
+
+    // Liten kanalväljare under presets på sidorna: väljer kanal för stegraden, SEKVENS och klaviaturen.
+    void byggMinikanaler()
+    {
+        using namespace km::stil;
+        for (int i = 0; i < antalKanaler; ++i)
+        {
+            const Rectangle<int> k (916 + (i % 2) * 132, 486 + (i / 2) * 66, 128, 60);
+            auto& t = yta (k, [this, i] (juce::Graphics& g, Rectangle<float> kr)
+            {
+                const bool aktiv = i == lage.kanal;
+                const bool tyst = param (params::id::kanal (i, "tyst")) > 0.5f;
+                auto y = ritaKnapp (g, kr.reduced (1.5f), aktiv, aktiv ? Colour (0xff29191a) : Colour (0xff222227));
+                ritaLysdiod (g, { y.getX() + 10.0f, y.getY() + 11.0f }, 2.3f, farg::lysRod, aktiv ? 1.0f : 0.0f);
+                tryck (g, "KANAL " + juce::String (i + 1), { y.getX() + 18.0f, y.getY() + 7.0f, 70.0f, 8.0f }, 4.8f, juce::Justification::centredLeft, farg::silverMatt);
+                if (tyst) tryck (g, "TYST", { y.getX() + 8.0f, y.getBottom() - 16.0f, 60.0f, 8.0f }, 4.8f, juce::Justification::centredLeft, farg::tryckRott);
+                rubrik (g, kanalNamnet (i), { y.getX() + 8.0f, y.getY() + 24.0f, y.getWidth() - 24.0f, 11.0f }, 9.5f,
+                        aktiv ? farg::vitt : farg::silver, juce::Justification::centredLeft, aktiv ? 1.5f : 1.1f, 1.6f);
+                ritaLedStapel (g, { y.getRight() - 9.0f, y.getY() + 6.0f, 4.0f, y.getHeight() - 12.0f }, kanalVisad[(size_t) i], 8, true);
+            },
+            [this, i] { return (juce::int64) (kanalVisad[(size_t) i] * 8.0f) + 16 * (i == lage.kanal) + 32 * (param (params::id::kanal (i, "tyst")) > 0.5f); },
+            [this, i] (const juce::MouseEvent& e)
+            {
+                if (e.mods.isPopupMenu()) { satt (params::id::kanal (i, "tyst"), param (params::id::kanal (i, "tyst")) > 0.5f ? 0.0f : 1.0f); return; }
+                valjVy (lage.vy, i);
+            });
+            miniYtor.push_back (&t);
+        }
     }
 
     // -----------------------------------------------------------------------------------------
@@ -956,9 +1074,9 @@ private:
     void byggKlaviaturen()
     {
         using namespace km::stil;
-        const Rectangle<int> r (14, 724, 1172, 116);
-        const Rectangle<int> v (r.getX(), r.getY() + 10, 104, r.getHeight() - 16);
-        yta ({ v.getX() + 22, v.getY() + 22, 60, 28 }, [this] (juce::Graphics& g, Rectangle<float> rr)
+        const Rectangle<int> r (14, 756, 1172, 84);
+        const Rectangle<int> v (r.getX(), r.getY() + 6, 104, r.getHeight() - 12);
+        yta ({ v.getX() + 30, v.getY() + 18, 44, 26 }, [this] (juce::Graphics& g, Rectangle<float> rr)
         {
             ritaSjusegment (g, rr, "C" + juce::String (klaviatur.oktav));
         }, [this] { return (juce::int64) klaviatur.oktav; });
@@ -968,7 +1086,7 @@ private:
             {
                 auto a = ritaKnapp (g, rr.reduced (1.5f));
                 g.setColour (farg::silver);
-                g.fillPath (ikon (upp ? Ikon::spela : Ikon::bakat, a.reduced (10.0f, 3.5f)));
+                g.fillPath (ikon (upp ? Ikon::spela : Ikon::bakat, a.reduced (5.0f, 4.0f)));
             });
             t.tryck = [this, upp] (const juce::MouseEvent&)
             {
@@ -977,11 +1095,11 @@ private:
                 klaviatur.repaint();
             };
         };
-        pil ({ v.getX() + 10, v.getY() + 58, 40, 22 }, false);
-        pil ({ v.getRight() - 50, v.getY() + 58, 40, 22 }, true);
+        pil ({ v.getX() + 4, v.getY() + 20, 24, 22 }, false);
+        pil ({ v.getRight() - 28, v.getY() + 20, 24, 22 }, true);
 
         addAndMakeVisible (klaviatur);
-        klaviatur.setBounds (r.getX() + 116, r.getY() + 12, r.getWidth() - 116, r.getHeight() - 18);
+        klaviatur.setBounds (r.getX() + 116, r.getY() + 8, r.getWidth() - 116, r.getHeight() - 12);
         klaviatur.nedslag = [this] (int notnr, float styrka) { stegskriv (notnr, styrka); };
     }
 
@@ -1076,32 +1194,6 @@ private:
             tryck (g, "HELVETE", { 1122.0f, 62.0f, 60.0f, 8.0f }, 5.0f, juce::Justification::centredRight, farg::silverMatt);
         }
 
-        // Kanalväljaren.
-        {
-            const Rectangle<float> k (14.0f, 96.0f, 178.0f, 352.0f);
-            ritaInfalltFalt (g, k, ytorna);
-            tryck (g, sv ("KANALVÄLJARE"), { k.getX(), k.getY() + 8.0f, k.getWidth(), 8.0f }, 5.6f);
-            const float ky = k.getY() + 26.0f + (float) lage.kanal * 60.0f + 25.0f;
-            ritaPil (g, { k.getRight() - 7.0f, ky }, { k.getRight() + 16.0f, ky }, 5.0f, farg::tryckRott);
-            const float y = k.getY() + 280.0f;
-            tryck (g, sv ("MÖNSTER"), { k.getX() + 12.0f, y, 80.0f, 8.0f }, 5.6f, juce::Justification::centredLeft);
-            tryck (g, "VARIANT", { k.getX() + 100.0f, y, 70.0f, 8.0f }, 5.6f, juce::Justification::centredLeft);
-            tryck (g, sv ("DRA · RULLA · KLICKA"), { k.getX() + 12.0f, y + 50.0f, 150.0f, 8.0f }, 4.4f, juce::Justification::centredLeft, farg::silverMatt);
-        }
-
-        // Bildskärmens infattning.
-        {
-            const Rectangle<float> yttre (208.0f, 92.0f, 684.0f, 360.0f);
-            skarm::ritaInfattning (g, yttre, glas, ytorna);
-            const float y = yttre.getBottom() - 20.0f;
-            tryck (g, sv ("BILDSKÄRM"), { yttre.getX() + 22.0f, y - 4.0f, 100.0f, 8.0f }, 5.6f, juce::Justification::centredLeft);
-            g.setColour (farg::silverMatt);
-            g.fillRect (yttre.getX() + 96.0f, y - 0.5f, 120.0f, 1.0f);
-            tryck (g, "BANDSTYRKA", { yttre.getRight() - 300.0f, y - 4.0f, 80.0f, 8.0f }, 5.0f, juce::Justification::centredLeft, farg::silverMatt);
-            ritaLysdiod (g, { yttre.getRight() - 30.0f, y }, 2.4f, farg::lysRod, 1.0f);
-            tryck (g, "TV", { yttre.getRight() - 58.0f, y - 4.0f, 20.0f, 8.0f }, 5.0f, juce::Justification::centredRight, farg::silverMatt);
-        }
-
         // Presets och master.
         {
             const Rectangle<float> p (906.0f, 96.0f, 280.0f, 352.0f);
@@ -1111,30 +1203,49 @@ private:
             prov::gruppRubrik (g, "MASTER", p.getX() + 14.0f, p.getRight() - 14.0f, p.getY() + 228.0f);
         }
 
-        prov::skara (g, 462.0f, 0.0f, r.getWidth());
+        prov::skara (g, 462.0f, 900.0f, r.getWidth());
 
-        // Rattpanelen: kanalens (eller vyns) namn och fältet med grupprubrikerna.
+        // Sidorna: fältet, lådorna och den lilla kanalväljaren. I KANAL-vyn också skärmens infattning.
         {
-            const Rectangle<float> rp (14.0f, 470.0f, 1172.0f, 152.0f);
+            ritaInfalltFalt (g, sidYta.toFloat(), ytorna);
+            for (const auto& l : lador)
+                if (l.sida == sidIndex())
+                {
+                    g.setColour (juce::Colours::white.withAlpha (0.035f));
+                    g.fillRoundedRectangle (l.r, 3.0f);
+                    g.setColour (juce::Colours::black.withAlpha (0.6f));
+                    g.drawRoundedRectangle (l.r, 3.0f, 1.0f);
+                    g.setColour (juce::Colours::white.withAlpha (0.06f));
+                    g.drawRoundedRectangle (l.r.translated (0.0f, 1.0f), 3.0f, 0.6f);
+                    tryck (g, l.titel, { l.r.getX() + 10.0f, l.r.getY() + 6.0f, l.r.getWidth() - 20.0f, 8.0f }, 5.8f, juce::Justification::centredLeft, farg::silver, 0.9f, 2.2f);
+                    g.setColour (farg::silverMatt.withAlpha (0.6f));
+                    g.fillRect (l.r.getX() + 10.0f, l.r.getY() + 18.0f, l.r.getWidth() - 20.0f, 0.8f);
+                }
+            if (kanalVyn())
+            {
+                juce::Graphics::ScopedSaveState spara (g);
+                g.addTransform (skarmTransform());
+                const Rectangle<float> yttre (208.0f, 92.0f, 684.0f, 336.0f);
+                skarm::ritaInfattning (g, yttre, glas, ytorna);
+            }
+            const Rectangle<float> mk (906.0f, 466.0f, 280.0f, 156.0f);
+            ritaInfalltFalt (g, mk, ytorna);
+            tryck (g, "KANAL", { mk.getX(), mk.getY() + 8.0f, mk.getWidth(), 8.0f }, 5.6f);
+        }
+
+        // Vylisten under rattarna (samma plats i alla vyer): vyknapparna, LJUD i KANAL-vyn och kanalens
+        // eller vyns namn.
+        {
+            const Rectangle<float> blk (950.0f, 630.0f, 30.0f, 20.0f);
             const bool kanalVy = lage.vy == Vy::Kanal || lage.vy == Vy::Sekvens;
-            const Rectangle<float> blk (rp.getRight() - 236.0f, rp.getY() + 4.0f, 30.0f, 20.0f);
             g.setColour (farg::tryckRott);
             g.fillPath (parallellogram (blk, 6.0f));
             static const char* vyNamn[] { "", "", "MIXER", "EFFEKTER", "MODULATION", "LÅTEN" };
             rubrik (g, kanalVy ? juce::String (lage.kanal + 1) : juce::String (lage.vy == Vy::Laten ? "L" : "M"), blk, 12.0f, farg::vitt, juce::Justification::centred, 1.8f);
             rubrik (g, kanalVy ? kanalNamnet (lage.kanal) : sv (vyNamn[(int) lage.vy]), { blk.getRight() + 8.0f, blk.getY() + 2.0f, 200.0f, 16.0f },
                     14.0f, farg::vitt, juce::Justification::centredLeft, 1.9f, 2.2f);
-            if (lage.vy == Vy::Kanal) tryck (g, "LJUD", { 580.0f, 480.0f, 32.0f, 8.0f }, 5.4f, juce::Justification::centredLeft);
-            else ritaDiagonaler (g, { rp.getX() + 572.0f, rp.getY() + 9.0f, rp.getRight() - 246.0f - (rp.getX() + 572.0f), 10.0f },
-                                 juce::Colours::white.withAlpha (0.06f), 2.0f, 6.0f);
-            ritaInfalltFalt (g, falt.toFloat(), ytorna);
-            for (int rad = 0; rad < 2; ++rad)
-            {
-                const float cy = (float) falt.getY() + (rad == 0 ? 30.0f : 89.0f);
-                for (auto& gr : vyInnehall[(size_t) vyIndex()][(size_t) rad])
-                    if (gr.syns() && gr.titel.isNotEmpty())
-                        prov::gruppRubrik (g, gr.titel, gr.x0 + 6.0f, gr.x1 - 6.0f, cy - 24.0f);
-            }
+            if (lage.vy == Vy::Kanal) tryck (g, "LJUD", { 580.0f, 636.0f, 32.0f, 8.0f }, 5.4f, juce::Justification::centredLeft);
+            else ritaDiagonaler (g, { 586.0f, 635.0f, 354.0f, 10.0f }, juce::Colours::white.withAlpha (0.06f), 2.0f, 6.0f);
         }
 
         // Stegraden.
@@ -1142,13 +1253,13 @@ private:
 
         // Klaviaturen.
         {
-            const Rectangle<float> kr (14.0f, 724.0f, 1172.0f, 116.0f);
+            const Rectangle<float> kr (14.0f, 756.0f, 1172.0f, 84.0f);
             prov::skara (g, kr.getY(), 0.0f, r.getWidth());
-            const auto v = Rectangle<float> (kr.getX(), kr.getY() + 10.0f, 104.0f, kr.getHeight() - 16.0f);
+            const auto v = Rectangle<float> (kr.getX(), kr.getY() + 6.0f, 104.0f, kr.getHeight() - 12.0f);
             ritaInfalltFalt (g, v, ytorna);
-            tryck (g, "OKTAV", { v.getX(), v.getY() + 8.0f, v.getWidth(), 8.0f }, 5.6f);
+            tryck (g, "OKTAV", { v.getX(), v.getY() + 6.0f, v.getWidth(), 8.0f }, 5.6f);
             static const char* spelar[] { "SPELAR KOLVBASEN", "SPELAR KOLVBAS 2", "SPELAR STAMPVERKET", "SPELAR HUGGET" };
-            tryck (g, spelar[lage.kanal], { v.getX(), v.getBottom() - 12.0f, v.getWidth(), 8.0f }, 4.0f, juce::Justification::centred, farg::silverMatt, 0.7f, 1.2f);
+            tryck (g, spelar[lage.kanal], { v.getX(), v.getBottom() - 11.0f, v.getWidth(), 8.0f }, 4.0f, juce::Justification::centred, farg::silverMatt, 0.7f, 1.2f);
         }
 
         for (auto p : { Point<float> (7.0f, 7.0f), { r.getRight() - 7.0f, 7.0f }, { 7.0f, r.getBottom() - 7.0f }, { r.getRight() - 7.0f, r.getBottom() - 7.0f } })
@@ -1230,7 +1341,7 @@ private:
         if (sekvens.isVisible()) sekvens.tick();
         if (latVy.isVisible()) latVy.tick();
         klaviatur.tick();
-        bild.uppdatera (skarmData (utMax));
+        if (bild.isVisible()) bild.uppdatera (skarmData (utMax));
     }
 
     SkarmData skarmData (float utMax)
@@ -1290,7 +1401,8 @@ private:
     KroppsmaskinenProcessor& proc;
     PanelLage lage;
     Visare visare;
-    const Rectangle<int> falt { 14, 502, 1172, 120 };
+    const Rectangle<int> falt { 14, 470, 1172, 152 };      // KANAL-vyns rattpanel
+    const Rectangle<int> sidYta { 14, 92, 878, 530 };      // sidornas yta (vyknapparna ligger under)
     const Rectangle<float> glas { 230.0f, 108.0f, 640.0f, 304.0f };
 
     std::vector<std::unique_ptr<Reglage>> reglage;
@@ -1301,7 +1413,8 @@ private:
     Klaviatur klaviatur;
     Bildskarm bild;
     Tryckyta* vfd = nullptr;
-    std::vector<Tryckyta*> ljudYtor;
+    std::vector<Tryckyta*> ljudYtor, miniYtor, vyKnappar;
+    std::vector<juce::Component*> kanalYtor;   // kanalväljaren och bildskärmen: bara i KANAL-vyn
     static inline float bildUpplosning = 1.0f;   // skärmens interna upplösning (andel av den fysiska)
     Tryckyta* hjulMonster = nullptr;
 
