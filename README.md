@@ -2,7 +2,7 @@
 
 *Modell KM-87.* En groovebox för Electronic Body Music och New Beat. Instrument-plugin (VST3, AU, CLAP) och fristående app för macOS. Allt ljud är syntetiskt.
 
-**Status: fas 0–3 klara och grind 0–3 godkända. Nästa: fas 4, fabriksbandet (1.0).** Se [PLAN.md](PLAN.md) för hela planen.
+**Status: fas 0–3 klara och grind 0–3 godkända. Fas 4 – fabriksbandet, låtläget och manualen – är byggd och väntar på grind 4.** Se [PLAN.md](PLAN.md) för hela planen.
 
 Det här finns:
 
@@ -17,8 +17,9 @@ Det här finns:
 - **Modulationen:** två LFO:er (fria eller i takt, 4 takter – 1/16), två envelopes som startas av en vald kanal, modhjul, aftertouch och anslag, och sex kopplingar till filter, klang, pulsbredd, tonhöjd, Drivet, rummet, ekot och Spänningen.
 - **Taktverket:** sextondelar med gung, egen klocka eller DAW:ens transport, olika längd per kanal (polymeter), transponering från keyboardet.
 - **Mönsterbanker:** 16 mönster per kanal, vart och ett med variant A och B. Varianten kan vara A, B eller A+B (växlar varannat varv). Byter du mönster medan sekvensern går tar det nya över på nästa takt.
+- **Låtläget:** en låt med upp till 64 rader. Varje rad anger mönster och variant för alla fyra kanalerna, vilka kanaler som är tysta, hur många takter raden spelas och – om man vill – Spänningen och en transponering. Låten följer DAW:ens position takt för takt, och sparas med presetet.
 - **Mixern:** nivå, panorering, sändning till Grindrummet och Ekot, tyst och solo per kanal, och tyst per trumspår.
-- **Fabriksbandet:** *Init*, *Kolv 125* (grind 0), grind 1-looparna *EBM 128*, *Marsch 120* och *New Beat 112*, och hela maskinen i *Fabriksgolv 125*, *Paroll 132* och *Svart skiva 33* (145 BPM på 33 varv med pitchen uppe: 116 BPM).
+- **Fabriksbandet:** 40 presets – *Init* och 39 startpunkter i EBM, New Beat och Industri, var och en med flera mönster per kanal – och två demolåtar med hela arrangemanget i låtläget. Se [Fabriksbandet](#fabriksbandet).
 - **VHS-panelen:** en svart hemelektroniklåda från 1987 med en tjock-TV i mitten och VHS-band ovanpå bilden. Skärmen visar vald kanal som en maskin i en vektorvärld (kolven, två kolvar, pressen, bilan), mixern som torn, effekterna som oscilloskop och modulationen som kurvor. Allt ritas i kod (`Source/ui/`), inklusive OSD-typsnittet och texturerna – inga bild- eller typsnittsfiler. Panelen kan visas i 60–160 % (MENY → Storlek, 85 % från början).
 
 ![VHS-panelen, KANAL-vyn med Kolvbasen](docs/panelen_kanal.png)
@@ -35,7 +36,7 @@ Tryck **SPELA** i bandverket överst (den fristående appen; i en DAW följer se
 | **Kanalväljaren** | Väljer kanal för KANAL- och SEKVENS-vyn, stegraden och klaviaturen. Högerklick tystar kanalen. Stapeln visar nivån. **Mönster**: dra eller rulla för mönster 1–16, klicka för att växla variant; **Variant** A, B eller A+B. |
 | **Bildskärmen** | Visar vald kanal eller vy. **Bandstyrka** Av / Lite / Mycket under skärmen; Kassettens slitage sliter också bilden. |
 | **Presets** | Numret och namnet (klicka på numret för listan), ◀ ▶, **SPARA** och **MENY** (presets, spara, bandstyrka, storlek och *Visa gränssnittets CPU*). Rör man ett reglage visar displayen namn och värde. VU-mätarna och mastern: **Nivå**, **Klämman** (tröskeln – medurs klämmer mer) och **Kassetten** (slitaget). |
-| **Vyerna** | **KANAL**: vald kanals ljud, Drivet och kanalens nivå, panorering och sändningar. I Stampverket väljer man trumma med de tolv knapparna (som på en TR-maskin); lysdioderna blinkar när trummorna slår. **SEKVENS**: hela mönstret för vald kanal och sida, Mönster, Variant, Längd, Gung, **Kopiera A→B** och **Rensa**. **MIXER**, **EFFEKTER**, **MODULATION**. |
+| **Vyerna** | **KANAL**: vald kanals ljud, Drivet och kanalens nivå, panorering och sändningar. I Stampverket väljer man trumma med de tolv knapparna (som på en TR-maskin); lysdioderna blinkar när trummorna slår. **SEKVENS**: hela mönstret för vald kanal och sida, Mönster, Variant, Längd, Gung, **Kopiera A→B** och **Rensa**. **MIXER**, **EFFEKTER**, **MODULATION**, och **LÅTEN** (låtläget, se nedan). |
 | **Stegraden** | Vald kanals mönster, sexton steg per sida. **I–IV** väljer sida (sidan följer spelhuvudet när mönstret är längre än 16 steg, utom en stund efter att man valt själv). **A/B** väljer vilken variant som ändras. I Stampverket ändras vald trumma. |
 | **Klaviaturen** | Spelar vald kanal (Stampverket på kanal 10 enligt GM-kartan nedan); ◀ ▶ flyttar en oktav. |
 
@@ -69,6 +70,88 @@ När sekvensern står still spelar keyboardet Kolvbasen (MIDI-kanal 2 spelar Kol
 | Handklapp | 39 D♯2 | Metall | 56 G♯3 |
 | Hi-hat | 42 F♯2 | Smäll | 54 F♯3 |
 | Öppen hi-hat | 46 A♯2 | Kubjällra / kantslag | 37 C♯2 |
+
+## Ett spår på en timme
+
+1. **Välj en startpunkt.** Bläddra med ◀ ▶ under presetdisplayen (eller klicka på numret för listan) och tryck **SPELA**. Varje preset i EBM, New Beat och Industri är ett eget ljud med färdiga mönster: mönster **1** är grundgrooven (A och B växlar, B är variationen eller fillen), **2** är refrängen eller kontrasten, **3** ett intro eller en gles del och **4** en trumfill eller ett uppbygge. (De sju första presetsen från fas 0–2 följer inte riktigt den planen; där är mönster 1 det viktiga.)
+2. **Lyssna på delarna.** Byt mönster i kanalväljaren (dra i mönsterdisplayen) eller i **SEKVENS**-vyn; bytet sker på nästa takt. Högerklick på en kanal tystar den. Prova **Spänningen** och **Varvtalet**.
+3. **Gör det till ditt.** Ändra ljudet i **KANAL**-vyn och mönstren i stegraden eller i **SEKVENS** (se tabellen nedan). Spara med **SPARA**.
+4. **Bygg låten.** Gå till **LÅTEN**. Klicka på **+** för första raden, ställ in mönstren med panelen och tryck **HÄMTA** – raden får kanalernas mönster, varianter och tystnad. Ställ takterna (dra i siffran). Klicka på **+** igen för nästa rad (den börjar som en kopia), ändra, och så vidare. Slå på **LÅTLÄGET** och tryck **SPOLA** och **SPELA**. Spänningen per rad ger uppbyggen; en transponering per rad ger tonartsbyten.
+5. **Spela in i DAW:en.** Lägg Kroppsmaskinen på ett instrumentspår. Låten följer DAW:ens takt (takt 1 = låtens första rad), så det räcker att trycka play. Eller spela in den fristående appens utgång.
+
+### Ljudbanken och Lås mönstren
+
+Kroppsmaskinen ska fungera även utanför fabriksbandets låtar, så ljuden kan bytas för sig:
+
+- **Ljudbanken** (överst i KANAL-vyn: **LJUD** ◀ namn ▶ **SPARA**) byter bara vald kanals klang – oscillatorer, filter, envelopes och Drivet, eller Stampverkets kit och trummornas stämning, klang och nivå, eller Huggets läge, ackord och envelope. Mönster, låt, tempo och mixen (nivå, panorering, sändningar) står kvar. Klicka på namnet för listan. Basljuden går att lägga på både Kolvbasen och Kolvbas 2. Fabriksljuden kommer från fabriksbandet (79 basljud, 40 trumljud och 37 ljud för Hugget, sorterade efter presetets kategori); egna ljud sparas med **SPARA** under *Egna*.
+- **Lås mönstren** (MENY) gör att presets bara byter ljudet – klang, effekter, modulation och mix – och lämnar mönster, låt, tempo, gung, grundton, Varvtalet och kanalernas mönsterval som de är. Presetdisplayen visar *(LÅSTA MÖNSTER)* så länge det är på. Så kan en egen låt provas med alla fabriksbandets ljud.
+
+Demolåtarna *Stålverket 128* och *Antwerpen 110* (kategorin Demo) visar ett helt arrangemang i låtläget – öppna dem och titta i **LÅTEN**.
+
+![LÅTEN-vyn med demolåten Stålverket 128](docs/panelen_laten.png)
+
+### Låtläget i detalj
+
+| Var | Gör |
+| --- | --- |
+| **LÅTLÄGET** | Låten styr mönster, varianter och tystnad. Av: panelens Mönster och Variant gäller, som vanligt. |
+| **Vid slutet** | *Loopa* börjar om från första raden; *Stanna* tystnar efter sista raden. |
+| Radnumret | Väljer rad (orange = raden som spelas). **KOPIERA**, **TA BORT** och **HÄMTA** verkar på vald rad. |
+| **+** | Lägger till en rad sist: en kopia av den sista, eller panelens mönster om låten är tom. |
+| Takter | Dra eller rulla (1–64); dubbelklick ger 4. |
+| Kanalernas rutor | Dra eller rulla för mönster 1–16, klicka för variant A → B → A+B, högerklick tystar kanalen på raden. |
+| Spänn. | Spänningen för raden, 0–100 %; dubbelklick ger "–" (rör inte spaken). |
+| Transp. | Transponerar Kolvbasen, Kolvbas 2 och Hugget ±24 halvtoner; dubbelklick ger 0. |
+| Rubrikkolumnen | Klick eller rullning byter sida (16 rader per sida, fyra sidor). Sidan följer raden som spelas. |
+
+Låtens rader byter på taktgränsen; efter ett hopp eller en start mitt i en takt gäller den rad som platsen hör till. Mönster i A+B-läge växlar varannan takt räknat från låtens början, så rader med ett jämnt antal takter håller A och B i fas.
+
+## Fabriksbandet
+
+| Kategori | Preset | Idé |
+| --- | --- | --- |
+| Grund | Init | En bastrumma och en ton – börja från noll |
+| EBM | Kolv 125 | Sextondelsbas med oktavhopp (grind 0) |
+| EBM | EBM 128 | Två basar i lager: mörk botten och samma gång en oktav upp, överstyrd |
+| EBM | Marsch 120 | Marschtakt, tung bas (grind 1) |
+| EBM | Fabriksgolv 125 | Hela maskinen: lager av basar, stötar, gatad virvel (grind 2) |
+| EBM | Paroll 132 | Snabbt och hårt, körstötar |
+| EBM | Valsverk 124 | Bas i treor, Kolvbas 2 en oktav upp och 3/16 sent, kvintstötar |
+| EBM | Smedjan 118 | Pulsbas med halvtonsgnissel, städ, synkad Kolvbas 2, enorm gatad virvel |
+| EBM | Stålpress 130 | DAF-aktiga sågtandssextondelar i två takter, motstämma på 12 steg, blåsstötar |
+| EBM | Signalfabrik 126 | FM-melodi över lagrad bas, ping-pong-eko på 3/16 |
+| EBM | Kontrollrum 122 | Tre mot fyra i basen, kantslag, sus4-körstötar, drönande Kolvbas 2 |
+| EBM | Ångvissla 133 | Snabb, bitkrossad frygisk bas, pumpande kompressor, ekande orkesterstötar |
+| EBM | Kadens 116 | Gung, gummiaktig glidbas, plockade pulsackord, pulsleadkrok |
+| EBM | Löpande band 129 | Arpeggiobas, Kolvbas 2 en kvint upp och en åttondel sent, klockackord |
+| EBM | Trumslagare 121 | Tom i stället för hi-hat, sub en oktav ned, synklead |
+| New Beat | New Beat 112 | Långsam, tung, belgisk (grind 1) |
+| New Beat | Svart skiva 33 | 145 BPM på 33 varv med pitchen uppe: 116 BPM |
+| New Beat | Syrabad 108 | Syrabas i Kolvbas 2 över en offbeat-sub, kubjällra |
+| New Beat | Nålen 33 | 152 BPM på 33 varv (113): lagrad EBM-bas som faller en kvart |
+| New Beat | Nattskift 110 | Klassisk studsande oktavbas, Kolvbas 2 en sextondel sent, blåsstötar |
+| New Beat | Svartrock 104 | Överstyrd kvint-"gitarr", sub en oktav ned, slitet LP-band |
+| New Beat | Kubjällra 115 | Kubjällran leder, blåsstötar i dur, plockad Kolvbas 2 |
+| New Beat | Mörkrum 100 | Enorm gatad virvel, liggande körackord, frygisk glidbas |
+| New Beat | Plus åtta 33 | 140 BPM på 33 + 8 % i skivspelarläget (112): klockor i kvinter med eko |
+| New Beat | Gummiband 107 | Glidbas som öppnas av en LFO på halvnoter, brusskakare, pulslead |
+| New Beat | Bältesdrift 106 | Tung lagrad sextondelsbas, fallande orkesterstötar, Fabrik-kitet |
+| New Beat | Rökmaskin 113 | Chorus, långt bandeko, klockor, Kolvbas 2 en åttondel sent och åt höger |
+| New Beat | Kassettkopia 109 | Slitet EP-band, synklead, Kolvbas 2 på 12 steg |
+| Industri | Slagverk 96 | Metallslagverk, brusdrön, gonggong |
+| Industri | Pressluft 142 | Bitkross överallt, bastrumvirvlar i sextondelar, dykande stötar |
+| Industri | Monument 88 | Långsam marsch, pukor, virvelvirvlar, orgelkvintbas |
+| Industri | Ånghammare 108 | Arpeggion av stålklockor, staccatobas med förslag |
+| Industri | Kraftverk 120 | Liggande brum med LFO, ångstötar i Kolvbas 2, drivande turbin |
+| Industri | Rost 84 | Slamglidbas, Smäll som virvel, slitet EP-band |
+| Industri | Gnistor 148 | Snabb trestegsbas, FM-lead svept av en sågtands-LFO |
+| Industri | Gjuteri 112 | Synkad skrikbas över en sub, hård pump |
+| Industri | Larmklocka 128 | Siren (LFO på Huggets tonhöjd) över studsande bas |
+| Industri | Betong 100 | Halvtid, jättelik gatad virvel på trean, sub plus kvintgrus |
+| Industri | Signalstörning 134 | Chans och ratchets i varje spår, slumpad LFO på filtret, klockblipp |
+| Industri | Skyddsrum 72 | Mörkt och stilla: drön i kvinter, kör, djup metall, långt bandeko |
+| Demo | Stålverket 128 | Demolåt, EBM i e-moll: 18 rader, 107 takter (3:20), bryggan en kvart upp |
+| Demo | Antwerpen 110 | Demolåt, New Beat i g-moll med gung: 18 rader, 97 takter (3:31) |
 
 ## Bygga lokalt
 
@@ -120,7 +203,7 @@ cmake --build build --config Release --target KMRender
 ./build/KMRender_artefacts/Release/KMRender renders
 ```
 
-KMRender kontrollerar mönsterformatet (även inläsning av lägen från fas 0), alla 53 ljud för sig (Kolvbasen i båda filtren och med synk, Kolvbas 2, och tolv trummor i fyra kit), att Taktverket slår exakt på stegen, att ett nytt mönster tar över på nästa takt, tyst och solo, att Kolvbas 2 som följer låter exakt som Kolvbasen, att Drivet håller nivån, alla fabrikspresets, 40 slumpade ytterlägen, tempot genom JUCE:s AudioProcessorPlayer (samma väg som den fristående appen) i 44,1, 48 och 96 kHz med olika blockstorlekar, Huggets sju lägen, att Grindrummet stänger, att Ekot kommer i takt, att Klämman pumpar, att Varvtalet sänker tempo och tonhöjd lika mycket i båda lägena, att Spänningen håller nivån, att modulationen hörs och att Kassetten är helt av utan slitage men håller nivån med fullt slitage. Den avslutar med felkod om något går fel, så CI blir rött.
+KMRender kontrollerar mönsterformatet (även inläsning av lägen från fas 0), alla 53 ljud för sig (Kolvbasen i båda filtren och med synk, Kolvbas 2, och tolv trummor i fyra kit), att Taktverket slår exakt på stegen, att ett nytt mönster tar över på nästa takt, tyst och solo, att Kolvbas 2 som följer låter exakt som Kolvbasen, att Drivet håller nivån, alla fabrikspresets, 40 slumpade ytterlägen, tempot genom JUCE:s AudioProcessorPlayer (samma väg som den fristående appen) i 44,1, 48 och 96 kHz med olika blockstorlekar, Huggets sju lägen, att Grindrummet stänger, att Ekot kommer i takt, att Klämman pumpar, att Varvtalet sänker tempo och tonhöjd lika mycket i båda lägena, att Spänningen håller nivån, att modulationen hörs, att Kassetten är helt av utan slitage men håller nivån med fullt slitage, att låtläget byter mönster och tystnad takt för takt (Loopa och Stanna) att demolåtarna låter rad för rad hela vägen (`renders/demo_*.wav`) och att ljudbanken bara byter klangen, att alla 156 fabriksljud låter rent och att Lås mönstren behåller mönster och tempo. `KMRender --kanaler katalog [namn]` spelar varje presets mönster 1–4 för sig och varje kanal solo, med nivåerna utskrivna. Den avslutar med felkod om något går fel, så CI blir rött.
 
 **Grind 0 (godkänd):** `renders/grind0_kolv125.wav` (och `_bas`, `_trummor`).
 
@@ -128,9 +211,14 @@ KMRender kontrollerar mönsterformatet (även inläsning av lägen från fas 0),
 
 **Grind 3 (godkänd):** VHS-panelen. Kraven: under CPU-målet (< 3 % av en kärna på en M1 i 100 %), alla parametrar nåbara och grind 2-låten byggbar utan DAW:ens generiska vy. Att mäta på Macen: MENY → *Visa gränssnittets CPU* visar meddelandetrådens processortid (medel över två sekunder) i presetdisplayen, med sekvensern igång. `KMSnapshot --panel-parametrar` ska ge "0 saknas" och `--panel-klick` gå igenom utan fel (båda körs i CI).
 
+**Grind 4:** någon som inte har byggt maskinen gör ett spår på en timme med bara fabriksbandet och manualen ovan ([Ett spår på en timme](#ett-spår-på-en-timme)).
+
 **Grind 1 (godkänd):** tre loopar med bara bas och trummor, åtta takter var: `renders/grind1_ebm_128.wav`, `grind1_marsch_120.wav` och `grind1_new_beat_112.wav`. Varje kit finns som `renders/kit_*.wav` (alla tolv ljud efter varandra). Stilprovet granskas i `docs/stilprov_vhs.png`.
 
-## Testlåten i Reaper
+## Testlåtarna i Reaper
+
+`Reaper/Stalverket.RPP` och `Reaper/Antwerpen.RPP` är demolåtarna: ett spår med Kroppsmaskinen och presetet, tempot och längden – hela arrangemanget ligger i pluginets låt (låtläget), så projekten har ingen automation.
+
 
 `Reaper/Fabriksgolv.RPP` är grind 2-låten uppsatt i Reaper: ett spår med Kroppsmaskinen och presetet *Fabriksgolv 125* (med fler mönster), 112 takter i 125 BPM (3:35). Arrangemanget ligger som automation på pluginet – **Mönster** och **Tyst** för varje kanal och **Spänningen** – och en MIDI-region på spåret transponerar basgångarna en kvart upp i takt 57–64.
 
@@ -146,7 +234,7 @@ KMRender kontrollerar mönsterformatet (även inläsning av lägen från fas 0),
 | 81–96 | Fullt igen, Spänningen 70 % |
 | 97–112 | Utklingning: kanalerna försvinner en i taget |
 
-Projektet byggs av skriptet, som också kan rendera låten utan Reaper:
+Projekten byggs av skriptet, som också kan rendera låtarna utan Reaper:
 
 ```sh
 python3 tools/reaper/gor_reaper_projekt.py build/KMRender_artefacts/Release/KMRender Reaper --render
@@ -167,17 +255,18 @@ Reaper känner igen pluginet på ett tal och ett GUID. Skriptet läser talet ur 
 | `Source/dsp/Drivet.h` | Distorsionen per kanal: rör, overdrive (2x översamplat), bitkross, nivåkompensation | Utgår från `KrangDistortion.h` |
 | `Source/dsp/Motor.h` | Kopplar ihop Taktverket, kanalerna, mönsterbankerna, mixern, effekterna, Spänningen, Varvtalet (musikaliskt), modulationen och toppbegränsaren | Ny |
 | `Source/takt/Monster.h` | Trummönstret (12 spår), tonmönstret, textformatet och mönsterbankerna | Utgår från `Stegverket.h` och `TonStegverket.h` |
+| `Source/takt/Laten.h` | Låten: raderna, textformatet och platsen i låten | Ny |
 | `Source/takt/Taktverket.h` | Klockan: sextondelar, gung, DAW-synk, egen klocka | Utgår från `Stegverket.h` |
 | `Source/Parameters.h` | Parameterträdet – `km_<kanal>_<vad>` | Ny |
-| `Source/presets/` | Fabriksbandet och PresetManager (`.km87`-filer, formatversion 2) | Utgår från KrangBox |
+| `Source/presets/` | Fabriksbandet, Ljudbanken (`.km87ljud`) och PresetManager (`.km87`-filer, formatversion 3: mönster och låt sparas med presetet) | Utgår från KrangBox |
 | `Source/ui/ValueFormat.h` | Värdeformatet för rattarna | Kopia från KrangBox |
 | `Source/ui/stil/` | VHS-panelens ritverktyg: palett, texturer, linjeskrift, OSD-typsnitt, hårdvara, skärm, bandlager och stilprovet | Ny |
-| `Source/ui/vhs/` | VHS-panelen: `Panel.h` (sektionerna, vyerna, den cachade bakgrunden och timern), `Reglage.h` (ratt, knapp, väljare, spak, sjusegment), `Stegrad.h`, `Sekvens.h`, `Klaviatur.h`, `Bildskarm.h` och `Scener.h` (den animerade skärmen och bandlagret), `SkarmData.h` och `PanelLage.h` | Ny |
+| `Source/ui/vhs/` | VHS-panelen: `Panel.h` (sektionerna, vyerna, den cachade bakgrunden och timern), `Reglage.h` (ratt, knapp, väljare, spak, sjusegment), `Stegrad.h`, `Sekvens.h`, `Klaviatur.h`, `Bildskarm.h` och `Scener.h` (den animerade skärmen och bandlagret), `LatVy.h` (LÅTEN-vyn), `SkarmData.h` och `PanelLage.h` | Ny |
 | `Source/PluginProcessor.*` | Processorn: parametrar, mönster, presets och Varvtalets skivspelarläge (varispeed) | Ny |
 | `Source/PluginEditor.*` | Editorn: VHS-panelen i vald storlek (60–160 %) | Ny |
 | `tools/KMRender.cpp` | Renderingstest och lyssningsfiler; `--state`, `--parametrar` och `--projekt` för Reaper-skriptet | Ny |
 | `tools/reaper/gor_reaper_projekt.py` | Bygger testlåten som Reaper-projekt (och JSON för `KMRender --projekt`) | Utgår från KrangBox |
-| `Reaper/` | Testlåten: `Fabriksgolv.RPP` och `Fabriksgolv.json` | Ny |
+| `Reaper/` | Testlåtarna: `Fabriksgolv`, `Stalverket` och `Antwerpen` (`.RPP` och `.json`) | Ny |
 | `tools/KMSnapshot.cpp`, `tools/SkarmProv.h` | Ritar panelen, skärmen och stilprovet till PNG; mäter panelen och skärmen; kontrollerar parametrarna och klickar igenom panelen | Ny |
 | `.github/workflows/` | macOS-bygge, renderingstest, panelbilder och panelkontroller, pluginval | Utgår från KrangBox |
 

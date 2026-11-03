@@ -47,7 +47,8 @@ inline Scen scenFor (Vy vy, int kanal)
 {
     switch (vy)
     {
-        case Vy::Mixer:      return Scen::Mixer;
+        case Vy::Mixer:
+        case Vy::Laten:      return Scen::Mixer;   // låtvyn visar alla kanalernas nivåer
         case Vy::Effekter:   return Scen::Effekter;
         case Vy::Modulation: return Scen::Modulation;
         case Vy::Kanal:

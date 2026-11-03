@@ -1,7 +1,7 @@
 // KMSnapshot – ritar panelen till PNG, så att gränssnittet kan granskas utan DAW.
 //
-//   KMSnapshot fil.png [skala] [vy 1–5] [kanal 1–4] [preset]
-//        VHS-panelen; vy 1 KANAL, 2 SEKVENS, 3 MIXER, 4 EFFEKTER, 5 MODULATION. Skalan är fysisk (2 = Retina).
+//   KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–4] [preset]
+//        VHS-panelen; vy 1 KANAL, 2 SEKVENS, 3 MIXER, 4 EFFEKTER, 5 MODULATION, 6 LÅTEN. Skalan är fysisk (2 = Retina).
 //   KMSnapshot --panel-tid [skala] [sekunder]       panelens kostnad per sekund när sekvensern går
 //   KMSnapshot --panel-parametrar                    listar parametrar som inte nås från panelen
 //   KMSnapshot --panel-klick                         klickar på allt i alla vyer (letar krascher och jassert)
@@ -87,11 +87,11 @@ int main (int argc, char* argv[])
         km::stil::prov::Detaljer detaljer;
         return sparaPNG (detaljer, fil, skala, "Detaljarket");
     }
-    // VHS-panelen: KMSnapshot fil.png [skala] [vy 1–5] [kanal 1–4] [preset]
+    // VHS-panelen: KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–4] [preset]
     const bool tid = lage == "--panel-tid" || lage == "--panel-parametrar" || lage == "--panel-klick";
     const juce::File fil = juce::File::getCurrentWorkingDirectory().getChildFile (tid ? "x.png" : argv[1]);
     const float skala = argc > 2 ? (float) juce::String (argv[2]).getDoubleValue() : 1.0f;
-    const int vy = ! tid && argc > 3 ? juce::jlimit (1, 5, juce::String (argv[3]).getIntValue()) : 1;
+    const int vy = ! tid && argc > 3 ? juce::jlimit (1, 6, juce::String (argv[3]).getIntValue()) : 1;
     const int kanal = ! tid && argc > 4 ? juce::jlimit (1, 4, juce::String (argv[4]).getIntValue()) : 1;
     const juce::String preset = ! tid && argc > 5 ? juce::String::fromUTF8 (argv[5]) : juce::String ("Kolv 125");
 
@@ -123,14 +123,14 @@ int main (int argc, char* argv[])
             const auto t = juce::Time::getCurrentTime();
             juce::MouseEvent ned (kalla, p, m.withFlags (juce::ModifierKeys::leftButtonModifier), 1.0f, 0, 0, 0, 0, &c, &c, t, p, t, 1, false);
             juce::MouseEvent drag (kalla, p.translated (0.0f, dy), m.withFlags (juce::ModifierKeys::leftButtonModifier), 1.0f, 0, 0, 0, 0, &c, &c, t, p, t, 1, true);
-            juce::MouseEvent upp (kalla, p.translated (0.0f, dy), m, 1.0f, 0, 0, 0, 0, &c, &c, t, p, t, 1, dy != 0.0f);
+            juce::MouseEvent upp (kalla, p.translated (0.0f, dy), m, 1.0f, 0, 0, 0, 0, &c, &c, t, p, t, 1, std::abs (dy) > 0.0f);
             c.mouseDown (ned); c.mouseDrag (drag); c.mouseUp (upp);
             juce::MouseWheelDetails w { 0.0f, 0.2f, false, false, false };
             c.mouseWheelMove (upp, w);
             ++antal;
         };
         const juce::Rectangle<int> undantag (906, 150, 280, 40);   // ◀ ▶ SPARA MENY och presetnumret
-        for (int v = 0; v < 5; ++v)
+        for (int v = 0; v < 6; ++v)
             for (int k = 0; k < 4; ++k)
             {
                 panel.valjVy ((km::vhs::Vy) v, k);
@@ -138,6 +138,7 @@ int main (int argc, char* argv[])
                 {
                     if (! c->isVisible() || c->getBounds().intersects (undantag) || c->getBounds().intersects (juce::Rectangle<int> (918, 118, 60, 40))) continue;
                     if (c->getBounds().getY() < 70 && c->getBounds().getX() >= 408 && c->getBounds().getX() < 440) continue;   // SPOLA
+                    if (c->getBounds().intersects (juce::Rectangle<int> (878, 472, 60, 24))) continue;   // SPARA ljud (dialog)
                     for (float fx : { 0.2f, 0.5f, 0.8f })
                         for (auto m : { juce::ModifierKeys(), juce::ModifierKeys (juce::ModifierKeys::shiftModifier), juce::ModifierKeys (juce::ModifierKeys::altModifier) })
                             skicka (*c, { c->getWidth() * fx, c->getHeight() * 0.5f }, m, fx < 0.5f ? -20.0f : 0.0f);

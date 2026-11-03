@@ -4,11 +4,14 @@
 //   KMRender --state "<preset>" fil.xml [param=värde ...] [monster:<kb|kb2|sv|hu>:<nr><A|B>=<text> ...]
 //   KMRender --parametrar fil.txt
 //   KMRender --projekt spec.json ut.wav
+//   KMRender --kanaler katalog [del av presetnamn]
 //
 // --state skriver pluginets läge (samma XML som DAW:en sparar) efter att ha laddat presetet och ändrat
 // parametrar och mönster; används av tools/reaper/gor_reaper_projekt.py. --parametrar skriver alla
 // parametrar i den ordning DAW:en ser dem (index, ID och antal steg). --projekt spelar en låt utan DAW:
 // en låtsad DAW-transport, automation och MIDI enligt spec.json, och skriver resultatet som WAV.
+// --kanaler spelar varje fabrikspresets mönster 1–4 i fyra takter, mixen och varje kanal solo, skriver WAV
+// och nivåerna (för att lyssna på och jämföra fabriksbandet).
 //
 // Kör testerna nedan och skriver WAV-filer till katalogen (standard: renders/). Avslutar med kod 1 om något
 // test misslyckas, så att CI blir rött.
@@ -34,6 +37,11 @@
 //   16. Spänningen: full spänning håller nivån inom ±4 dB och toppen under 0 dBFS.
 //   17. Modulationen: en LFO på Kolvbasens filter ändrar klangen.
 //   18. Kassetten: slitage 0 på SP ändrar ingenting; fullt slitage på EP håller nivån och toppen.
+//   19. Låtläget: textformatet, raderna byter mönster och tystnad takt för takt, Loopa och Stanna.
+//   20. Demolåtarna: varje fabrikspreset med låt spelas hela vägen (alla takter och en till): inga NaN, topp
+//       högst 0 dBFS, rimlig nivå, och varje rad låter om inte alla kanalerna är tysta. Skrivs som demo_*.wav.
+//   21. Ljudbanken: ett ljud byter bara kanalens klang (mönster, tempo och mix står kvar), alla fabriksljud
+//       låter rent, och Lås mönstren laddar ett preset utan att mönster och tempo byts.
 //
 // Grind 0-loopen hamnar i renders/grind0_kolv125.wav, grind 1-looparna i renders/grind1_*.wav.
 //
@@ -138,6 +146,13 @@ juce::String filnamn (juce::String namn)
 double rms (const juce::AudioBuffer<float>& b) { return mat (b).rms; }
 float dB (double v) { return juce::Decibels::gainToDecibels ((float) v, -120.0f); }
 double takter (KroppsmaskinenProcessor& p, int n) { return n * 4 * 60.0 / (double) *p.state.getRawParameterValue (km::params::id::tempo); }
+
+// Som takter(), men med Varvtalet: 33 varv sänker tempot i båda lägena (egen klocka).
+double verkligaTakter (KroppsmaskinenProcessor& p, int n)
+{
+    const auto varv = (km::Varv) (int) *p.state.getRawParameterValue (km::params::id::varvtal);
+    return takter (p, n) / km::varvFaktor (varv);
+}
 
 // Ansatser: första samplet över 0,004 efter minst 50 ms nära tystnad, om ljudet når 0,02 inom 2 ms.
 std::vector<int> ansatser (const juce::AudioBuffer<float>& ut, double takt = sr)
@@ -420,7 +435,8 @@ void testaPresets (const juce::File& katalog)
         const auto m = mat (ut);
         kontroll (m.finit && m.topp <= 1.0f && m.rms > 0.02,
                   namn + ": topp " + juce::String (m.topp, 3) + ", RMS " + juce::String (dB (m.rms), 1) + " dB");
-        skrivWav (ut, katalog.getChildFile (filnamn (namn) + ".wav"));
+        if (km::presets::factoryPresets()[(size_t) i].laten == nullptr)   // låtarna skrivs hela i test 20
+            skrivWav (ut, katalog.getChildFile (filnamn (namn) + ".wav"));
         if (namn == "Kolv 125") skrivWav (ut, katalog.getChildFile ("grind0_kolv125.wav"));
         if (namn == "EBM 128" || namn == "Marsch 120" || namn == "New Beat 112")
             skrivWav (ut, katalog.getChildFile ("grind1_" + filnamn (namn) + ".wav"));
@@ -749,16 +765,183 @@ void testaKassetten()
     for (int c = 0; c < ref.getNumChannels(); ++c)
         for (int i = 0; i < ref.getNumSamples(); ++i)
             skillnad = std::max (skillnad, (double) std::abs (ref.getSample (c, i) - ren.getSample (c, i)));
-    kontroll (skillnad == 0.0, "SP utan slitage: ingen skillnad (" + juce::String (skillnad, 6) + ")");
+    kontroll (skillnad <= 0.0, "SP utan slitage: ingen skillnad (" + juce::String (skillnad, 6) + ")");
 
     for (float kv : { 1.0f, 2.0f })
     {
         const auto ut = mat (spela (kv, 1.0f));
         const float d = dB (ut.rms) - dB (mat (ref).rms);
         kontroll (ut.finit && ut.topp <= 1.0f && std::abs (d) <= 3.0f,
-                  juce::String (kv == 1.0f ? "LP" : "EP") + juce::String::fromUTF8 (", fullt slitage: ") + (d >= 0 ? "+" : "") + juce::String (d, 1) + " dB, topp " + juce::String (ut.topp, 3));
+                  juce::String (kv < 1.5f ? "LP" : "EP") + juce::String::fromUTF8 (", fullt slitage: ") + (d >= 0 ? "+" : "") + juce::String (d, 1) + " dB, topp " + juce::String (ut.topp, 3));
     }
 }
+void testaLaten()
+{
+    std::cout << juce::String::fromUTF8 ("19. Låtläget\n");
+    using namespace km::params;
+    {
+        km::Laten l;
+        const juce::String text ("4 kb=1A kb2=2B sv=3AB hu=16A tyst=kb2,hu sp=50 tr=+5; 1 kb=1A kb2=1A sv=1A hu=1A");
+        l.fromString (text);
+        kontroll (l.antal() == 2 && l.toString() == text && l.totalaTakter() == 5 && l.plats (4, true).rad == 1 && l.plats (5, false).rad < 0
+                  && l.plats (6, true).rad == 0 && l.plats (6, true).taktIRad == 1,
+                  "textformatet: " + l.toString());
+    }
+    // Mönster 1: ett slag i början av takten; mönster 2: tomt. Rad 1 spelar mönster 1, rad 2 mönster 2.
+    for (int stanna = 0; stanna < 2; ++stanna)
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Init");
+        p->banker.kolvbasen.rensa();
+        p->banker.trummor.rensa();
+        p->banker.trummor.get (0, 0).fromString ("2000000000000000");
+        p->banker.laten.fromString ("1 sv=1A tyst=kb,kb2,hu; 1 sv=2A tyst=kb,kb2,hu");
+        satt (*p, id::kit, (float) km::Kit::Niononio);
+        satt (*p, id::trumma ((int) km::Trumma::Bastrumma, "klang"), 0.0f);
+        satt (*p, id::tempo, 200.0f);
+        satt (*p, id::latLage, 1.0f);
+        satt (*p, id::latSlut, (float) stanna);
+        satt (*p, id::spela, 1.0f);
+        const double takt = 60.0 / 200.0 * 4.0;
+        const auto ut = rendera (*p, takt * 4.0 + 0.1);
+        juce::String bild;
+        bool ratt = true;
+        for (int t = 0; t < 4; ++t)
+        {
+            juce::AudioBuffer<float> del (1, (int) (0.3 * sr));
+            del.copyFrom (0, 0, ut, 0, (int) (t * takt * sr), del.getNumSamples());
+            const bool ljud = rms (del) > 0.01;
+            const bool vantat = t == 0 || (t == 2 && stanna == 0);
+            ratt = ratt && ljud == vantat;
+            bild << (ljud ? "X" : ".");
+        }
+        kontroll (ratt, juce::String (stanna ? "Stanna" : "Loopa") + ": takterna " + bild);
+    }
+}
+
+void testaDemolatarna (const juce::File& katalog)
+{
+    std::cout << juce::String::fromUTF8 ("20. Demolåtarna\n");
+    const auto& fabrik = km::presets::factoryPresets();
+    int antal = 0;
+    for (int i = 0; i < (int) fabrik.size(); ++i)
+    {
+        if (fabrik[(size_t) i].laten == nullptr) continue;
+        ++antal;
+        auto p = nyProcessor();
+        p->presets.load (i);
+        satt (*p, km::params::id::spela, 1.0f);
+        const auto namn = p->presets.getEntries()[(size_t) i].name;
+        const auto& laten = p->banker.laten;
+        const int total = laten.totalaTakter();
+        const double takt = verkligaTakter (*p, 1);
+        const auto ut = rendera (*p, takt * (total + 1));
+        const auto m = mat (ut);
+        kontroll (m.finit && m.topp <= 1.0f && m.rms > 0.04 && m.rms < 0.32,
+                  namn + ": " + juce::String (laten.antal()) + " rader, " + juce::String (total) + " takter ("
+                  + juce::String ((int) (takt * total) / 60) + ":" + juce::String ((int) (takt * total) % 60).paddedLeft ('0', 2)
+                  + "), topp " + juce::String (m.topp, 3) + ", RMS " + juce::String (dB (m.rms), 1) + " dB");
+
+        // Varje rad ska låta, om inte alla kanalerna är tysta i den.
+        juce::String tysta;
+        double svagast = 1.0;
+        int start = 0;
+        for (int r = 0; r < laten.antal(); ++r)
+        {
+            const auto rad = laten.get (r);
+            bool allaTysta = true;
+            for (bool t : rad.tyst) allaTysta = allaTysta && t;
+            const auto del = mat (ut, (int) (start * takt * sr), (int) ((start + rad.takter) * takt * sr));
+            start += rad.takter;
+            if (allaTysta) continue;
+            svagast = std::min (svagast, del.rms);
+            if (del.rms < 0.01) tysta << " " << (r + 1);
+        }
+        kontroll (tysta.isEmpty(), namn + juce::String::fromUTF8 (": varje rad låter (svagaste rad RMS ") + juce::String (dB (svagast), 1)
+                                   + " dB)" + (tysta.isEmpty() ? juce::String() : juce::String::fromUTF8 (", tysta rader:") + tysta));
+        skrivWav (ut, katalog.getChildFile ("demo_" + filnamn (namn.fromFirstOccurrenceOf (juce::String::fromUTF8 ("· "), false, false)) + ".wav"));
+    }
+    kontroll (antal >= 2, juce::String (antal) + juce::String::fromUTF8 (" fabrikspresets med låt"));
+}
+void testaLjudbanken()
+{
+    std::cout << juce::String::fromUTF8 ("21. Ljudbanken\n");
+    using namespace km::params;
+    auto varde = [] (KroppsmaskinenProcessor& p, const juce::String& pid) { return p.state.getRawParameterValue (pid)->load(); };
+    auto monsterText = [] (KroppsmaskinenProcessor& p)
+    {
+        juce::String t;
+        for (int m = 0; m < km::antalMonster; ++m)
+            for (int v = 0; v < 2; ++v)
+                t << p.banker.trummor.get (m, v).toString() << p.banker.kolvbasen.get (m, v).toString() << p.banker.kolvbas2.get (m, v).toString()
+                  << p.banker.hugget.get (m, v).toString();
+        return t + p.banker.laten.toString();
+    };
+    {
+        auto p = nyProcessor();
+        const auto& l = p->ljud;
+        kontroll (l.lista (km::LjudTyp::Bas).size() > 10 && l.lista (km::LjudTyp::Trummor).size() > 10 && l.lista (km::LjudTyp::Hugget).size() > 10,
+                  juce::String ((int) l.lista (km::LjudTyp::Bas).size()) + " basljud, " + juce::String ((int) l.lista (km::LjudTyp::Trummor).size())
+                  + " trumljud, " + juce::String ((int) l.lista (km::LjudTyp::Hugget).size()) + juce::String::fromUTF8 (" ljud för Hugget"));
+    }
+    // Ett basljud på Kolvbasen: bara Kolvbasens klang ändras.
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Valsverk 124");
+        const auto fore = monsterText (*p);
+        const float tempo = varde (*p, id::tempo), niva = varde (*p, id::kanal (0, "niva")), kb2 = varde (*p, id::kolv (1, "cutoff"));
+        const int i = (int) p->ljud.lista (km::LjudTyp::Bas).size() - 1;
+        p->ljud.ladda (0, i);
+        const float mal = p->ljud.lista (km::LjudTyp::Bas)[(size_t) i].varden.at ("cutoff");
+        kontroll (monsterText (*p) == fore && std::abs (varde (*p, id::tempo) - tempo) < 0.01f && std::abs (varde (*p, id::kanal (0, "niva")) - niva) < 0.001f
+                  && std::abs (varde (*p, id::kolv (1, "cutoff")) - kb2) < 0.01f && std::abs (varde (*p, id::kolv (0, "cutoff")) - mal) < 0.5f
+                  && p->ljud.aktuelltNamn (0) == p->ljud.lista (km::LjudTyp::Bas)[(size_t) i].namn,
+                  juce::String::fromUTF8 ("basljudet ändrar bara Kolvbasens klang (") + p->ljud.aktuelltNamn (0) + ")");
+    }
+    // Alla fabriksljud låter rent, solo på sin kanal.
+    int antal = 0, tysta = 0;
+    float vartTopp = 0.0f;
+    bool rena = true;
+    juce::String tystaNamn;
+    for (int t = 0; t < 3; ++t)
+    {
+        const int kanal = t == 0 ? 0 : (t == 1 ? (int) km::Kanal::Stampverket : (int) km::Kanal::Hugget);
+        const auto n = (int) nyProcessor()->ljud.lista ((km::LjudTyp) t).size();
+        for (int i = 0; i < n; ++i)
+        {
+            auto p = nyProcessor();
+            p->presets.loadByName ("Kolv 125");
+            p->banker.hugget.get (0, 0).fromString ("0a . . . 0 . . 3 . . 0 . -2 . . .");
+            p->ljud.ladda (kanal, i);
+            for (int k = 0; k < km::antalKanaler; ++k) satt (*p, id::kanal (k, "solo"), k == kanal ? 1.0f : 0.0f);
+            satt (*p, id::spela, 1.0f);
+            const auto m = mat (rendera (*p, takter (*p, 1) + 0.3));
+            rena = rena && m.finit && m.topp <= 1.0f;
+            vartTopp = juce::jmax (vartTopp, m.topp);
+            if (m.rms < 0.003) { ++tysta; tystaNamn << " " << p->ljud.aktuelltNamn (kanal); }
+            ++antal;
+        }
+    }
+    kontroll (rena && tysta == 0, juce::String (antal) + " ljud solo: " + (rena ? "alla rena" : "ORENA") + ", " + juce::String (tysta) + " tysta"
+              + tystaNamn + juce::String::fromUTF8 (", högsta topp ") + juce::String (vartTopp, 3));
+    // Lås mönstren.
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Fabriksgolv 125");
+        const auto fore = monsterText (*p);
+        const float tempo = varde (*p, id::tempo), monster = varde (*p, id::kanal (2, "monster"));
+        p->presets.lasMonster = true;
+        p->presets.loadByName ("Syrabad 108");
+        const bool ok = monsterText (*p) == fore && std::abs (varde (*p, id::tempo) - tempo) < 0.01f && std::abs (varde (*p, id::kanal (2, "monster")) - monster) < 0.01f;
+        p->presets.lasMonster = false;
+        auto q = nyProcessor();
+        q->presets.loadByName ("Syrabad 108");
+        const bool ljudet = std::abs (varde (*p, id::kolv (1, "cutoff")) - varde (*q, id::kolv (1, "cutoff"))) < 0.01f
+                         && std::abs (varde (*p, id::master) - varde (*q, id::master)) < 0.001f;
+        kontroll (ok && ljudet, juce::String::fromUTF8 ("Lås mönstren: Syrabads ljud på Fabriksgolvets mönster och tempo"));
+    }
+}
+
 } // namespace
 
 // --state: läget efter preset, parametrar och mönster.
@@ -905,12 +1088,57 @@ int spelaProjekt (const char* specFil, const char* utFil)
     return m.finit && m.topp <= 1.0f ? 0 : 1;
 }
 
+// --kanaler: varje fabrikspreset (eller bara de vars namn innehåller 'bara'), mönster 1–4 ett i taget i fyra
+// takter, låtläget av: mixen och varje kanal solo. Skriver kanaler_<preset>_m<n>[_<kanal>].wav och nivåerna.
+int skrivKanaler (const char* katalogNamn, const char* bara)
+{
+    using namespace km::params;
+    const juce::File katalog = juce::File::getCurrentWorkingDirectory().getChildFile (katalogNamn);
+    katalog.createDirectory();
+    static const char* kort[] = { "kb", "kb2", "sv", "hu" };
+    const auto& fabrik = km::presets::factoryPresets();
+    for (int i = 0; i < (int) fabrik.size(); ++i)
+    {
+        const auto namn = juce::String::fromUTF8 (fabrik[(size_t) i].name);
+        if (bara != nullptr && ! namn.containsIgnoreCase (juce::String::fromUTF8 (bara))) continue;
+        for (int m = 0; m < 4; ++m)
+        {
+            auto mall = nyProcessor();
+            mall->presets.load (i);
+            bool nagot = false;
+            for (int v = 0; v < 2; ++v)
+                nagot = nagot || ! mall->banker.trummor.get (m, v).arTomt() || ! mall->banker.kolvbasen.get (m, v).arTomt()
+                              || ! mall->banker.kolvbas2.get (m, v).arTomt() || ! mall->banker.hugget.get (m, v).arTomt();
+            if (! nagot) continue;
+            juce::String rad = namn + " m" + juce::String (m + 1) + ":";
+            for (int solo = -1; solo < km::antalKanaler; ++solo)
+            {
+                auto p = nyProcessor();
+                p->presets.load (i);
+                satt (*p, id::latLage, 0.0f);
+                for (int k = 0; k < km::antalKanaler; ++k) satt (*p, id::kanal (k, "monster"), (float) (m + 1));
+                if (solo >= 0) satt (*p, id::kanal (solo, "solo"), 1.0f);
+                satt (*p, id::spela, 1.0f);
+                const auto ut = rendera (*p, verkligaTakter (*p, 4) + 0.3);
+                const auto r = mat (ut);
+                rad << " " << (solo < 0 ? "mix" : kort[solo]) << " " << juce::String (dB (r.rms), 1);
+                if (solo < 0) rad << " (topp " << juce::String (r.topp, 2) << ")";
+                skrivWav (ut, katalog.getChildFile ("kanaler_" + filnamn (namn) + "_m" + juce::String (m + 1)
+                                                    + (solo < 0 ? juce::String() : "_" + juce::String (kort[solo])) + ".wav"));
+            }
+            std::cout << rad << "\n";
+        }
+    }
+    return 0;
+}
+
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI juce;
     if (argc > 3 && juce::String (argv[1]) == "--state") return skrivLage (argc, argv);
     if (argc > 2 && juce::String (argv[1]) == "--parametrar") return skrivParametrar (argv[2]);
     if (argc > 3 && juce::String (argv[1]) == "--projekt") return spelaProjekt (argv[2], argv[3]);
+    if (argc > 2 && juce::String (argv[1]) == "--kanaler") return skrivKanaler (argv[2], argc > 3 ? argv[3] : nullptr);
     const juce::File katalog = juce::File::getCurrentWorkingDirectory().getChildFile (argc > 1 ? argv[1] : "renders");
     katalog.createDirectory();
 
@@ -932,6 +1160,9 @@ int main (int argc, char* argv[])
     testaSpanningen();
     testaModulationen();
     testaKassetten();
+    testaLaten();
+    testaDemolatarna (katalog);
+    testaLjudbanken();
 
     std::cout << (fel == 0 ? "\nAlla test gick igenom.\n" : "\n" + std::to_string (fel) + " test misslyckades.\n");
     std::cout << "Filerna ligger i " << katalog.getFullPathName() << "\n";

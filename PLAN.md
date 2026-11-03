@@ -2,7 +2,7 @@
 
 *Modell KM-87. En groovebox för Electronic Body Music och New Beat, byggd som om den kom ur en svart hemelektroniklåda från 1987 och bara gick att se på genom en VHS-skärm.*
 
-**Status:** Fas 0–3 klara och grind 0–3 godkända. Nästa steg: fas 4, fabriksbandet (1.0). Se README.md. Stilprovet och loggan godkändes i fas 1 (2 november 2026).
+**Status:** Fas 0–3 klara och grind 0–3 godkända. Fas 4, fabriksbandet (1.0), är byggd och väntar på grind 4. Se README.md. Stilprovet och loggan godkändes i fas 1 (2 november 2026).
 
 Instrument-plugin (VST3, AU, CLAP) och fristående app för macOS, på samma stack som KrangBox. Allt ljud är syntetiskt. Allt i gränssnittet är på svenska.
 
@@ -254,6 +254,8 @@ Varje fas slutar med en **grind**: ett lyssnings- eller granskningstest som mås
 - Två demolåtar i Reaper-mappen.
 - Signering och notarisering för macOS.
 
+*Klar i kod, väntar på grind 4. Avvikelser från planen: "kedjor och låtläge" blev ett låtläge med rader (`Source/takt/Laten.h`, vyn LÅTEN): varje rad anger mönster, variant och tystnad för alla fyra kanalerna, antal takter och valfritt Spänningen och en transponering; låten följer DAW:ens position och sparas med presetet (formatversion 3). Kedjor per kanal byggdes inte, eftersom låtraderna gör samma sak för alla kanaler samtidigt. Fabriksbandet har 40 presets (Init och 39 i EBM, New Beat och Industri) och dessutom två demolåtar i kategorin Demo (*Stålverket 128* och *Antwerpen 110*), alltså 42 poster; de nya presetsen följer mönsterplanen 1 grundgroove, 2 refräng/kontrast, 3 intro, 4 fill/uppbygge, och ett mönster med bara A får en kopia som B. Demolåtarna ligger i Reaper-mappen som projekt utan automation – låtläget sköter arrangemanget. Manualen finns i README (Ett spår på en timme, Låtläget, Fabriksbandet). Tillägg efter önskemål: **Ljudbanken** – ljud per kanal (bas, trummor, Hugget) som byter bara klangen, fabriksljuden hämtade ur fabriksbandet och egna ljud sparade som `.km87ljud` – och **Lås mönstren**, så att presets kan laddas som rena ljuduppsättningar utan att mönster, låt och tempo byts. **Signering och notarisering är uppskjutna** (beslut 2 november 2026): grind 4 görs med osignerade byggen.*
+
 **Grind 4:** Någon som inte byggt maskinen gör ett spår på en timme med bara fabriksbandet och manualen.
 
 ### Fas 5 – Efter 1.0 (kandidater)
@@ -278,6 +280,8 @@ Varje fas slutar med en **grind**: ett lyssnings- eller granskningstest som mås
 - Modellnamnet är **KM-87**.
 - **Kolvbas 2 är en egen kanal**, inte ett läge i Kolvbasen. Det tunga ljudet hos Front 242, Nitzer Ebb, DAF och Die Krupps kommer ofta av två basar i lager: en mörk, ren botten och en ljus, distad bas ovanpå, eller två mönster som går i varandra. Det kräver två röster som kan klinga samtidigt, med egen klang, eget Drivet, egen nivå och egen sidokedja i Mixern. Ett läge med en röst klarar inte det.
 - **16 stegknappar med sidbyte** (sidorna I–IV, upp till 64 steg). EBM- och New Beat-mönster är nästan alltid en takt sextondelar, så en takt syns i sin helhet utan att bläddra. 16 knappar i fyra grupper om fyra är dessutom 808/909-greppet som genren byggdes på, och knapparna blir tillräckligt stora för att träffa även vid 60 % skala. Fyra sidlampor visar vilken sida som spelas och vilken som redigeras; läget **Följ** låter redigeringssidan hänga med uppspelningen.
+- **Låtläget är en låt med rader** (som 909:ans), inte kedjor per kanal. Demolåtarna styrs av låtläget, inte av automation.
+- **Signering och notarisering skjuts upp** till efter grind 4.
 - **Presets och mönster får ett eget format**, utan hänsyn till KrangBox. Formatet får ett versionsnummer från första bygget, så att senare ändringar kan läsa äldre filer.
 - GitHub-repot heter **`mikkeschiren/Kroppsmaskinen`**.
 

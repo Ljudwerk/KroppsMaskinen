@@ -37,6 +37,10 @@ namespace id
     inline constexpr auto varvLage = "km_varvLage";
     inline constexpr auto spanning = "km_spanning";
 
+    // Låtläget (fas 4)
+    inline constexpr auto latLage = "km_lat_spela";
+    inline constexpr auto latSlut = "km_lat_slut";
+
     // Hugget (ljudet; kanalens gemensamma parametrar heter km_hu_langd osv.)
     inline juce::String hu (const char* vad) { return juce::String ("km_hu_") + vad; }
 
@@ -231,6 +235,9 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     // Fas 3: Kassetten sist, så att äldre parameterindex (automation) står kvar.
     layout.add (std::make_unique<C> (pid (id::fx ("kass", "kvalitet")), "Kassetten bandhastighet", juce::StringArray { "SP", "LP", "EP" }, 0));
     layout.add (std::make_unique<F> (pid (id::fx ("kass", "slitage")), "Kassetten slitage", R (0.0f, 1.0f), 0.0f));
+    // Fas 4: låtläget.
+    layout.add (std::make_unique<juce::AudioParameterBool> (pid (id::latLage), namn ("Låtläget"), false));
+    layout.add (std::make_unique<C> (pid (id::latSlut), namn ("Låtens slut"), juce::StringArray { "Loopa", "Stanna" }, 0));
     return layout;
 }
 
@@ -245,6 +252,7 @@ public:
         folj = p (id::folj); forskjutning = p (id::forskjutning); transponering = p (id::transponering);
         kit = p (id::kit); kantslag = p (id::kantslag);
         varvtal = p (id::varvtal); varvLage = p (id::varvLage); spanning = p (id::spanning);
+        latLage = p (id::latLage); latSlut = p (id::latSlut);
         {
             size_t i = 0;
             for (auto* v : { "lage", "ackord", "klang", "attack", "fall", "hall", "slapp", "bredd", "sankning", "oktav" })
@@ -345,6 +353,8 @@ public:
         m.kassetten = { (Bandkvalitet) (int) f (18), f (19) };
 
         m.spanning = spanning->load();
+        m.latLage = latLage->load() > 0.5f;
+        m.latLoopa = latSlut->load() < 0.5f;
         varvFaktorNu = varvFaktor ((Varv) (int) varvtal->load());
         varvLageNu = (VarvLage) (int) varvLage->load();
         m.musikalisktVarv = varvLageNu == VarvLage::Musikaliskt ? varvFaktorNu : 1.0;
@@ -374,7 +384,7 @@ public:
 
 private:
     using P = std::atomic<float>*;
-    P spela, tempo, gung, grundton, master, folj, forskjutning, transponering, kit, kantslag, varvtal, varvLage, spanning;
+    P spela, tempo, gung, grundton, master, folj, forskjutning, transponering, kit, kantslag, varvtal, varvLage, spanning, latLage, latSlut;
     struct KanalP { P langd, monster, variant, drivetLage, drivetMangd, niva, tyst, solo, pan, sandA, sandB; };
     std::array<P, 10> hu {};
     std::array<P, 20> fx {};

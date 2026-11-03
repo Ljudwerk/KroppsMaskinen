@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-# Bygger grind 2-låten som ett Reaper-projekt (.RPP): ett spår med Kroppsmaskinen, mönsterbyten, tyst/på
-# och Spänningen som automation, och en MIDI-region som transponerar basgångarna.
+# Bygger testlåtarna som Reaper-projekt (.RPP), ett spår med Kroppsmaskinen i varje:
+#
+#   Fabriksgolv  – grind 2-låten: mönsterbyten, tyst/på och Spänningen som automation, och en MIDI-region
+#                  som transponerar basgångarna.
+#   Stalverket, Antwerpen – demolåtarna (fas 4): presetet har en låt, och låtläget sköter hela
+#                  arrangemanget; projektet är bara spåret, tempot och längden.
 #
 #   python3 tools/reaper/gor_reaper_projekt.py <KMRender> <utkatalog> [--render] [--reaper-id <tal>]
 #
-# Skriver:
-#   <utkatalog>/Fabriksgolv.RPP   – öppnas i Reaper
-#   <utkatalog>/Fabriksgolv.json  – samma låt för "KMRender --projekt" (spelas utan DAW)
-#   <utkatalog>/Fabriksgolv.wav   – (med --render) förhandslyssning, renderad av KMRender
+# Skriver för varje låt:
+#   <utkatalog>/<Namn>.RPP   – öppnas i Reaper
+#   <utkatalog>/<Namn>.json  – samma låt för "KMRender --projekt" (spelas utan DAW)
+#   <utkatalog>/<Namn>.wav   – (med --render) förhandslyssning, renderad av KMRender
 #
 # Pluginets läge (preset + extra mönster) hämtas med "KMRender --state", och parametrarnas ordning med
 # "KMRender --parametrar", så att automationen hamnar på rätt parameter.
@@ -18,7 +22,7 @@
 # reservvärde.
 #
 # Copyright (C) 2026 Kroppsmaskinen-teamet. Licens: AGPLv3, se LICENSE.
-import base64, glob, json, os, struct, subprocess, sys, tempfile, uuid
+import base64, glob, json, os, re, struct, subprocess, sys, tempfile, uuid
 
 PPQ = 960                                  # Reapers MIDI-upplösning: tick per fjärdedel
 GUID = 'ABCDEF019182FAEB4B706D6B4B6D3837'  # JUCE: ABCDEF01 9182FAEB + 'Kpmk' + 'Km87'
@@ -94,6 +98,19 @@ def fabriksgolv():
     return {'titel': 'Fabriksgolv – grind 2', 'preset': 'Fabriksgolv 125', 'tempo': 125, 'langdSlag': takt(113),
             'monster': monster_args(monster_texter), 'automation': automation, 'noter': noter}
 
+def demo(titel, preset, filnamn):
+    """En demolåt: presetets låt spelas i låtläget. Tempot och längden läses ur läget (se main)."""
+    return {'titel': titel, 'preset': preset, 'fil': filnamn, 'monster': [], 'automation': [], 'noter': [],
+            'tempo': None, 'langdSlag': None,
+            'anteckning': 'Arrangemanget ligger i pluginets låt (låtläget, vyn LÅTEN); spåret har ingen automation.'}
+
+def las_lat(state_xml):
+    """Tempot och låtens längd i fjärdedelar (plus en takt för utklingningen) ur pluginets läge."""
+    tempo = float(re.search(r'id="km_tempo" value="([^"]*)"', state_xml).group(1))
+    text = re.search(r'<Laten text="([^"]*)"', state_xml).group(1)
+    takter = sum(int(r.split()[0]) for r in text.split(';') if r.strip())
+    return tempo, (takter + 1) * 4.0
+
 def monster_args(m):
     return ['%s=%s' % (k, v) for k, v in m.items()]
 
@@ -150,7 +167,7 @@ def gor_rpp(lat, state_xml, index, intervall, rid):
     sek = lambda s: s * 60.0 / tempo
     ut = ['<REAPER_PROJECT 0.1 "7.0/macOS-arm64" 0 0',
           '  <NOTES 0 2', '    |%s – byggd av tools/reaper/gor_reaper_projekt.py' % lat['titel'],
-          '    |Mönster, tyst och Spänningen är automation på Kroppsmaskinen; MIDI-regionen transponerar basgångarna.', '  >',
+          '    |' + lat.get('anteckning', 'Mönster, tyst och Spänningen är automation på Kroppsmaskinen; MIDI-regionen transponerar basgångarna.'), '  >',
           '  TEMPO %g 4 4 0' % tempo, '  SAMPLERATE 48000 0 0', '  LOOP 0',
           '  MASTER_VOLUME 1 0 -1 -1 1', '  SELECTION 0 %g' % sek(slag), '  CURSOR 0',
           '  <TRACK %s' % guid(), '    NAME "Kroppsmaskinen"', '    VOLPAN 1 0 -1 -1 1', '    MUTESOLO 0 0 0',
@@ -169,10 +186,12 @@ def gor_rpp(lat, state_xml, index, intervall, rid):
         ut += ['        PT %.6f %.6f 1' % (sek(max(0.0, s)), norm(v)) for s, v in k['punkter']]
         ut += ['      >']
     ut += ['      WAK 0 0', '    >']
-    ut += ['    <ITEM', '      POSITION 0', '      LENGTH %.6f' % sek(slag), '      LOOP 0', '      NAME "Transponering"',
-           '      IGUID %s' % guid(), '      <SOURCE MIDI', '        HASDATA 1 %d QN' % PPQ]
-    ut += ['        ' + e for e in midi_handelser(lat['noter'], slag)]
-    ut += ['        GUID %s' % guid(), '      >', '    >', '  >', '>']
+    if lat['noter']:
+        ut += ['    <ITEM', '      POSITION 0', '      LENGTH %.6f' % sek(slag), '      LOOP 0', '      NAME "Transponering"',
+               '      IGUID %s' % guid(), '      <SOURCE MIDI', '        HASDATA 1 %d QN' % PPQ]
+        ut += ['        ' + e for e in midi_handelser(lat['noter'], slag)]
+        ut += ['        GUID %s' % guid(), '      >', '    >']
+    ut += ['  >', '>']
     return '\n'.join(ut) + '\n'
 
 def main():
@@ -181,12 +200,12 @@ def main():
         sys.exit(1)
     kmrender, utkatalog = os.path.abspath(sys.argv[1]), sys.argv[2]
     os.makedirs(utkatalog, exist_ok=True)
-    lat = fabriksgolv()
+    rid = reaper_id()
+    latar = [dict(fabriksgolv(), fil='Fabriksgolv'),
+             demo('Stålverket (demo)', 'Stålverket 128', 'Stalverket'),
+             demo('Antwerpen (demo)', 'Antwerpen 110', 'Antwerpen')]
 
     with tempfile.TemporaryDirectory() as tmp:
-        lage = os.path.join(tmp, 'lage.xml')
-        subprocess.run([kmrender, '--state', lat['preset'], lage] + lat['monster'], check=True)
-        state_xml = open(lage, encoding='utf-8').read().strip()
         par = os.path.join(tmp, 'parametrar.txt')
         subprocess.run([kmrender, '--parametrar', par], check=True)
         index, intervall = {}, {}
@@ -194,18 +213,24 @@ def main():
             i, pid, lo, hi = rad.rstrip('\n').split('\t')
             index[pid] = int(i); intervall[pid] = (float(lo), float(hi))
 
-    rid = reaper_id()
-    namn = os.path.join(utkatalog, 'Fabriksgolv')
-    with open(namn + '.RPP', 'w', encoding='utf-8') as f:
-        f.write(gor_rpp(lat, state_xml, index, intervall, rid))
-    spec = dict(lat, state=state_xml)
-    with open(namn + '.json', 'w', encoding='utf-8') as f:
-        json.dump(spec, f, ensure_ascii=False, indent=1)
-    minuter = lat['langdSlag'] * 60.0 / lat['tempo'] / 60.0
-    print('%s: %d takter i %g BPM (%d:%02d), %d automationskurvor' % (
-        namn + '.RPP', lat['langdSlag'] / 4, lat['tempo'], int(minuter), round((minuter % 1) * 60), len(lat['automation'])))
-    if '--render' in sys.argv:
-        subprocess.run([kmrender, '--projekt', namn + '.json', namn + '.wav'], check=True)
+        for lat in latar:
+            lage = os.path.join(tmp, 'lage.xml')
+            subprocess.run([kmrender, '--state', lat['preset'], lage] + lat['monster'], check=True)
+            state_xml = open(lage, encoding='utf-8').read().strip()
+            if lat['tempo'] is None:
+                lat['tempo'], lat['langdSlag'] = las_lat(state_xml)
+
+            namn = os.path.join(utkatalog, lat['fil'])
+            with open(namn + '.RPP', 'w', encoding='utf-8') as f:
+                f.write(gor_rpp(lat, state_xml, index, intervall, rid))
+            spec = dict(lat, state=state_xml)
+            with open(namn + '.json', 'w', encoding='utf-8') as f:
+                json.dump(spec, f, ensure_ascii=False, indent=1)
+            sek = lat['langdSlag'] * 60.0 / lat['tempo']
+            print('%s: %d takter i %g BPM (%d:%02d), %d automationskurvor' % (
+                namn + '.RPP', lat['langdSlag'] / 4, lat['tempo'], int(sek // 60), int(round(sek % 60)), len(lat['automation'])))
+            if '--render' in sys.argv:
+                subprocess.run([kmrender, '--projekt', namn + '.json', namn + '.wav'], check=True)
 
 if __name__ == '__main__':
     main()

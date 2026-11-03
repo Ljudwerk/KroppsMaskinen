@@ -58,6 +58,7 @@ inline const char* kanalText (const Fall& f)
         case Vy::Mixer:      return "MIXER";
         case Vy::Effekter:   return "EFFEKTER";
         case Vy::Modulation: return "MODULATION";
+        case Vy::Laten:      return "LATEN";
         case Vy::Kanal:
         case Vy::Sekvens:    break;
     }

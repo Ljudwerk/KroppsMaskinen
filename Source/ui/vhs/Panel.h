@@ -18,6 +18,7 @@
 #include "Stegrad.h"
 #include "Sekvens.h"
 #include "Klaviatur.h"
+#include "LatVy.h"
 #include "Bildskarm.h"
 #include "../stil/Textur.h"
 #include "../stil/OSDTypsnitt.h"
@@ -53,11 +54,11 @@ class Panel final : public juce::Component, private juce::Timer
 {
 public:
     static constexpr int designBredd = 1200, designHojd = 840;
-    static constexpr int antalVyer = 8;   // 0–3 KANAL per kanal, 4 SEKVENS, 5 MIXER, 6 EFFEKTER, 7 MODULATION
+    static constexpr int antalVyer = 9;   // 0–3 KANAL per kanal, 4 SEKVENS, 5 MIXER, 6 EFFEKTER, 7 MODULATION, 8 LÅTEN
 
     std::function<void (float)> skalaAndrad;   // MENY → Storlek; editorn ändrar sin storlek
 
-    explicit Panel (KroppsmaskinenProcessor& p) : proc (p), lage (p), stegrad (lage), sekvens (lage), klaviatur (lage)
+    explicit Panel (KroppsmaskinenProcessor& p) : proc (p), lage (p), stegrad (lage), sekvens (lage), latVy (lage), klaviatur (lage)
     {
         setOpaque (true);
         setSize (designBredd, designHojd);
@@ -69,11 +70,14 @@ public:
         byggBildskarmen();
         byggPresets();
         byggVyknappar();
+        byggLjudvaljaren();
         byggVyerna();
         addAndMakeVisible (stegrad);
         stegrad.setBounds (14, 628, 1172, 92);
         addAndMakeVisible (sekvens);
         sekvens.setBounds (falt.getX() + 222, falt.getY() + 6, falt.getWidth() - 232, falt.getHeight() - 12);
+        addAndMakeVisible (latVy);
+        latVy.setBounds (sekvens.getBounds());
         byggKlaviaturen();
 
         layoutVyerna();
@@ -398,7 +402,7 @@ private:
 
         vfd = &yta ({ r.getX() + 72, r.getY() + 22, r.getWidth() - 82, 38 }, [this] (juce::Graphics& g, Rectangle<float> rr) { ritaVfd (g, rr.reduced (2.0f)); },
                     [this] { return (juce::int64) (nu() - vfdTid < 1500.0) + 2 * proc.presets.getCurrentName().hashCode() + 7 * (int) diagnostikVarning
-                                     + 11 * (visaPrestanda ? (juce::int64) (cpuProcent * 10.0) + 1 : 0); });
+                                     + 11 * (visaPrestanda ? (juce::int64) (cpuProcent * 10.0) + 1 : 0) + 13 * (int) proc.presets.lasMonster; });
 
         const int y = r.getY() + 68;
         auto liten = [&] (Rectangle<int> k, juce::String text, Ikon ik, bool medIkon, std::function<void()> gor)
@@ -467,10 +471,14 @@ private:
             const auto& e = proc.presets.getEntries();
             const int i = proc.presets.getCurrentIndex();
             rad1 = juce::isPositiveAndBelow (i, (int) e.size()) ? versaler (e[(size_t) i].category) : juce::String();
+            if (proc.presets.lasMonster) rad1 << stil::sv ("  (LÅSTA MÖNSTER)");
             rad2 = versaler (proc.presets.getCurrentName());
         }
         auto skriv = [&] (const juce::String& t, float y, float p)
         {
+            // Långa namn: mindre punkter (ned till 1,5) innan texten kortas.
+            while (p > 1.5f && osd::bredd (t, p) > v.getWidth() - 12.0f) p -= 0.1f;
+            y += (2.0f - juce::jmin (2.0f, p)) * 3.5f;
             const int max = (int) ((v.getWidth() - 12.0f) / (6.0f * p));
             const auto text = t.substring (0, max);
             g.setColour (farg::vfd.withAlpha (0.25f));
@@ -512,6 +520,7 @@ private:
         fyllPresetMeny (presetar);
         m.addSubMenu ("Presets", presetar);
         m.addItem (1, stil::sv ("Spara preset…"));
+        m.addItem (3, stil::sv ("Lås mönstren (presets byter bara ljudet)"), true, proc.presets.lasMonster);
         m.addSeparator();
         const char* bandNamn[] { "Av", "Lite", "Mycket" };
         for (int i = 0; i < 3; ++i) band.addItem (10 + i, bandNamn[i], true, (int) bandstyrka() == i);
@@ -524,6 +533,7 @@ private:
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (vfd), [this] (int r)
         {
             if (r == 1) sparaPreset();
+            else if (r == 3) { proc.presets.lasMonster = ! proc.presets.lasMonster; vfd->repaint(); }
             else if (r == 2) { visaPrestanda = ! visaPrestanda; cpuProcent = -1.0; cpuStart = 0.0; }
             else if (r >= 10 && r < 13) sattBandstyrka ((Bandstyrka) (r - 10));
             else if (r >= 160 && r <= 260) { proc.panelLage.setProperty ("skala", (float) (r - 100) / 100.0f, nullptr); if (skalaAndrad) skalaAndrad ((float) (r - 100) / 100.0f); }
@@ -549,17 +559,115 @@ private:
     void byggVyknappar()
     {
         using namespace km::stil;
-        static const char* vyer[] { "KANAL", "SEKVENS", "MIXER", "EFFEKTER", "MODULATION" };
-        for (int i = 0; i < 5; ++i)
+        static const char* vyer[] { "KANAL", "SEKVENS", "MIXER", "EFFEKTER", "MODULATION", "LÅTEN" };
+        for (int i = 0; i < 6; ++i)
             yta ({ 24 + i * 92 - 2, 472, 90, 24 }, [this, i] (juce::Graphics& g, Rectangle<float> r)
             {
                 const bool a = (int) lage.vy == i;
                 auto y = ritaKnapp (g, r.reduced (2.0f), a);
                 ritaLysdiod (g, { y.getX() + 9.0f, y.getCentreY() }, 2.0f, farg::lysRod, a ? 1.0f : 0.0f);
-                tryck (g, vyer[i], y.withTrimmedLeft (14.0f), 5.6f, juce::Justification::centred, a ? farg::vitt : farg::silver);
+                tryck (g, sv (vyer[i]), y.withTrimmedLeft (14.0f), 5.6f, juce::Justification::centred, a ? farg::vitt : farg::silver);
             },
             [this, i] { return (juce::int64) ((int) lage.vy == i); },
             [this, i] (const juce::MouseEvent&) { valjVy ((Vy) i, lage.kanal); });
+    }
+
+    // Ljudbanken (KANAL-vyn): ◀ ljudets namn ▶ SPARA i rattpanelens list. Klick på namnet ger listan.
+    void byggLjudvaljaren()
+    {
+        using namespace km::stil;
+        auto pil = [this] (Rectangle<int> r, int steg)
+        {
+            auto nere = std::make_shared<bool> (false);
+            auto& t = yta (r, [nere, steg] (juce::Graphics& g, Rectangle<float> rr)
+            {
+                auto a = ritaKnapp (g, rr.reduced (1.5f), *nere);
+                g.setColour (farg::silver);
+                g.fillPath (ikon (steg > 0 ? Ikon::spela : Ikon::bakat, a.reduced (7.0f, 4.0f)));
+            });
+            auto* tp = &t;
+            t.tryck = [nere, tp] (const juce::MouseEvent&) { *nere = true; tp->repaint(); };
+            t.slapp = [this, nere, tp, steg] (const juce::MouseEvent& e)
+            {
+                *nere = false; tp->repaint();
+                if (! tp->getLocalBounds().contains (e.getPosition())) return;
+                const int n = (int) proc.ljud.lista (ljudTyp (lage.kanal)).size();
+                const int i = proc.ljud.aktuelltIndex (lage.kanal);
+                laddaLjud (i < 0 ? (steg > 0 ? 0 : n - 1) : ((i + steg) % n + n) % n);
+            };
+            ljudYtor.push_back (tp);
+        };
+        pil ({ 616, 474, 28, 20 }, -1);
+        auto& namn = yta ({ 646, 473, 200, 22 }, [this] (juce::Graphics& g, Rectangle<float> r)
+        {
+            g.setColour (juce::Colours::black);
+            g.fillRoundedRectangle (r.reduced (1.0f), 2.5f);
+            g.setColour (Colour (0xff04110f));
+            g.fillRoundedRectangle (r.reduced (2.0f), 2.0f);
+            auto n = proc.ljud.aktuelltNamn (lage.kanal);
+            const auto text = versaler (n.isEmpty() ? stil::sv ("Från presetet") : n);
+            float p = 1.6f;
+            while (p > 1.1f && osd::bredd (text, p) > r.getWidth() - 12.0f) p -= 0.1f;
+            g.setColour (n.isEmpty() ? farg::vfd.withAlpha (0.5f) : farg::vfd);
+            osd::ritaRaw (g, text.substring (0, (int) ((r.getWidth() - 12.0f) / (6.0f * p))), r.getX() + 6.0f, r.getCentreY() - 3.5f * p, p, 0.75f);
+        },
+        [this] { return (juce::int64) proc.ljud.aktuelltNamn (lage.kanal).hashCode() * 4 + lage.kanal; },
+        [this] (const juce::MouseEvent&) { visaLjudMeny(); });
+        ljudYtor.push_back (&namn);
+        pil ({ 848, 474, 28, 20 }, 1);
+        auto nere = std::make_shared<bool> (false);
+        auto& spara = yta ({ 880, 474, 56, 20 }, [nere] (juce::Graphics& g, Rectangle<float> r)
+        {
+            auto a = ritaKnapp (g, r.reduced (1.5f), *nere);
+            tryck (g, "SPARA", a, 5.2f);
+        });
+        auto* sp = &spara;
+        spara.tryck = [nere, sp] (const juce::MouseEvent&) { *nere = true; sp->repaint(); };
+        spara.slapp = [this, nere, sp] (const juce::MouseEvent& e) { *nere = false; sp->repaint(); if (sp->getLocalBounds().contains (e.getPosition())) sparaLjud(); };
+        ljudYtor.push_back (sp);
+    }
+
+    void laddaLjud (int i)
+    {
+        if (proc.ljud.ladda (lage.kanal, i))
+            visare (stil::sv (ljudTyp (lage.kanal) == LjudTyp::Bas ? "BASLJUD" : (ljudTyp (lage.kanal) == LjudTyp::Trummor ? "TRUMLJUD" : "HUGGETS LJUD")),
+                    versaler (proc.ljud.aktuelltNamn (lage.kanal)));
+        andrat();
+    }
+
+    void visaLjudMeny()
+    {
+        const auto& l = proc.ljud.lista (ljudTyp (lage.kanal));
+        juce::PopupMenu m, under;
+        juce::String kategori;
+        const int aktuell = proc.ljud.aktuelltIndex (lage.kanal);
+        auto avsluta = [&] { if (kategori.isNotEmpty()) m.addSubMenu (kategori, under); under = {}; };
+        for (int i = 0; i < (int) l.size(); ++i)
+        {
+            if (l[(size_t) i].kategori != kategori) { avsluta(); kategori = l[(size_t) i].kategori; }
+            under.addItem (1 + i, l[(size_t) i].namn, true, i == aktuell);
+        }
+        avsluta();
+        m.addSeparator();
+        m.addItem (100000, stil::sv ("Spara kanalens ljud…"));
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (ljudYtor[1]), [this] (int r)
+        {
+            if (r == 100000) sparaLjud();
+            else if (r > 0) laddaLjud (r - 1);
+        });
+    }
+
+    void sparaLjud()
+    {
+        auto* w = new juce::AlertWindow (stil::sv ("Spara ljud"), stil::sv ("Namn på ljudet för ") + kanalNamnet (lage.kanal).toLowerCase() + ":", juce::MessageBoxIconType::NoIcon);
+        w->addTextEditor ("namn", proc.ljud.aktuelltNamn (lage.kanal));
+        w->addButton ("Spara", 1, juce::KeyPress (juce::KeyPress::returnKey));
+        w->addButton ("Avbryt", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+        const int kanal = lage.kanal;
+        w->enterModalState (true, juce::ModalCallbackFunction::create ([this, w, kanal] (int r)
+        {
+            if (r == 1 && proc.ljud.sparaEget (kanal, w->getTextEditorContents ("namn"))) andrat();
+        }), true);
     }
 
     struct Grupp
@@ -674,6 +782,11 @@ private:
             mangd.bredd = 46;
             v[7][1].push_back ({ "KOPPLING " + juce::String (n + 1), { &kalla, &mal, &mangd }, {}, false, 10 });
         }
+
+        // --- Låten: låtläget och raderna (LatVy till höger)
+        v[8][0] = { { stil::sv ("LÅTLÄGET"), { &knapp (id::latLage, "Låtläget"), &valj (id::latSlut, "Vid slutet", 62) } } };
+        v[8][1] = { { "VALD RAD", { handling ("Kopiera", [this] { latKopiera(); }), handling ("Ta bort", [this] { latTaBort(); }),
+                                    handling ("Hämta", [this] { latHamta(); }) } } };
     }
 
     void laggTillKanal (Rad& rad, int k)
@@ -772,6 +885,8 @@ private:
             for (auto& gr : rad)
                 if (gr.syns()) for (auto* k : gr.k) k->setVisible (true);
         sekvens.setVisible (lage.vy == Vy::Sekvens);
+        for (auto* y : ljudYtor) y->setVisible (lage.vy == Vy::Kanal);
+        latVy.setVisible (lage.vy == Vy::Laten);
     }
 
     // -----------------------------------------------------------------------------------------
@@ -798,6 +913,41 @@ private:
         if (lage.foljer()) return;
         if (lage.tonKanal()) lage.ton().rensa(); else lage.trum().rensa();
         visare (stil::sv ("MÖNSTER ") + juce::String (lage.monsterFor (lage.kanal) + 1) + (lage.redigera == 0 ? "A" : "B"), "RENSAT");
+    }
+
+    // Låtens rader (LÅTEN-vyn): verkar på vald rad.
+    void latKopiera()
+    {
+        auto& l = proc.banker.laten;
+        if (l.antal() == 0 || l.antal() >= Laten::maxRader) return;
+        l.infoga (latVy.valdRad + 1, l.get (latVy.valdRad));
+        latVy.valdRad = juce::jmin (latVy.valdRad + 1, l.antal() - 1);
+        visare (stil::sv ("LÅTEN"), "RAD " + juce::String (latVy.valdRad + 1) + " KOPIERAD");
+        andrat();
+    }
+    void latTaBort()
+    {
+        auto& l = proc.banker.laten;
+        if (l.antal() == 0) return;
+        l.taBort (latVy.valdRad);
+        visare (stil::sv ("LÅTEN"), "RAD " + juce::String (latVy.valdRad + 1) + " BORTTAGEN");
+        latVy.valdRad = juce::jlimit (0, juce::jmax (0, l.antal() - 1), latVy.valdRad);
+        andrat();
+    }
+    void latHamta()
+    {
+        // Vald rad får panelens mönster, varianter och tystnad (takter, Spänningen och transponeringen står kvar).
+        auto& l = proc.banker.laten;
+        const auto ny = latVy.franPanelen();
+        if (l.antal() == 0) { l.infoga (0, ny); latVy.valdRad = 0; }
+        else
+        {
+            auto r = l.get (latVy.valdRad);
+            r.monster = ny.monster; r.variant = ny.variant; r.tyst = ny.tyst;
+            l.set (latVy.valdRad, r);
+        }
+        visare (stil::sv ("LÅTEN"), stil::sv ("RAD ") + juce::String (latVy.valdRad + 1) + stil::sv (" FRÅN PANELEN"));
+        andrat();
     }
 
     // -----------------------------------------------------------------------------------------
@@ -970,12 +1120,13 @@ private:
             const Rectangle<float> blk (rp.getRight() - 236.0f, rp.getY() + 4.0f, 30.0f, 20.0f);
             g.setColour (farg::tryckRott);
             g.fillPath (parallellogram (blk, 6.0f));
-            static const char* vyNamn[] { "", "", "MIXER", "EFFEKTER", "MODULATION" };
-            rubrik (g, kanalVy ? juce::String (lage.kanal + 1) : juce::String ("M"), blk, 12.0f, farg::vitt, juce::Justification::centred, 1.8f);
-            rubrik (g, kanalVy ? kanalNamnet (lage.kanal) : juce::String (vyNamn[(int) lage.vy]), { blk.getRight() + 8.0f, blk.getY() + 2.0f, 200.0f, 16.0f },
+            static const char* vyNamn[] { "", "", "MIXER", "EFFEKTER", "MODULATION", "LÅTEN" };
+            rubrik (g, kanalVy ? juce::String (lage.kanal + 1) : juce::String (lage.vy == Vy::Laten ? "L" : "M"), blk, 12.0f, farg::vitt, juce::Justification::centred, 1.8f);
+            rubrik (g, kanalVy ? kanalNamnet (lage.kanal) : sv (vyNamn[(int) lage.vy]), { blk.getRight() + 8.0f, blk.getY() + 2.0f, 200.0f, 16.0f },
                     14.0f, farg::vitt, juce::Justification::centredLeft, 1.9f, 2.2f);
-            ritaDiagonaler (g, { rp.getX() + 480.0f, rp.getY() + 9.0f, rp.getRight() - 246.0f - (rp.getX() + 480.0f), 10.0f },
-                            juce::Colours::white.withAlpha (0.06f), 2.0f, 6.0f);
+            if (lage.vy == Vy::Kanal) tryck (g, "LJUD", { 580.0f, 480.0f, 32.0f, 8.0f }, 5.4f, juce::Justification::centredLeft);
+            else ritaDiagonaler (g, { rp.getX() + 572.0f, rp.getY() + 9.0f, rp.getRight() - 246.0f - (rp.getX() + 572.0f), 10.0f },
+                                 juce::Colours::white.withAlpha (0.06f), 2.0f, 6.0f);
             ritaInfalltFalt (g, falt.toFloat(), ytorna);
             for (int rad = 0; rad < 2; ++rad)
             {
@@ -1077,6 +1228,7 @@ private:
         for (auto& y : ytor) y->kolla();
         stegrad.tick();
         if (sekvens.isVisible()) sekvens.tick();
+        if (latVy.isVisible()) latVy.tick();
         klaviatur.tick();
         bild.uppdatera (skarmData (utMax));
     }
@@ -1123,8 +1275,11 @@ private:
         static const char* kv[] { "SP", "LP", "EP" };
         d.osdKvalitet = kv[juce::jlimit (0, 2, (int) param (params::id::fx ("kass", "kvalitet")))];
         d.osdRakneverk = tidText (proc.speltid());
-        static const char* vyNamn[] { "", "SEKVENS", "MIXER", "EFFEKTER", "MODULATION" };
-        d.osdKanal = lage.vy == Vy::Kanal ? kanalNamnet (lage.kanal) : juce::String (vyNamn[(int) lage.vy]);
+        static const char* vyNamn[] { "", "SEKVENS", "MIXER", "EFFEKTER", "MODULATION", "LÅTEN" };
+        d.osdKanal = lage.vy == Vy::Kanal ? kanalNamnet (lage.kanal) : stil::sv (vyNamn[(int) lage.vy]);
+        if (const int rad = proc.latRad(); rad >= 0 && lage.vy == Vy::Laten)
+            d.osdKanal = "RAD " + juce::String (rad + 1).paddedLeft ('0', 2) + " " + juce::String (proc.latTakt() + 1) + "/"
+                       + juce::String (proc.banker.laten.get (rad).takter);
         d.bandstyrka = bandstyrka();
         d.slitage = param (params::id::fx ("kass", "slitage"));
         return d;
@@ -1142,9 +1297,11 @@ private:
     std::vector<std::unique_ptr<Tryckyta>> ytor;
     Stegrad stegrad;
     Sekvens sekvens;
+    LatVy latVy;
     Klaviatur klaviatur;
     Bildskarm bild;
     Tryckyta* vfd = nullptr;
+    std::vector<Tryckyta*> ljudYtor;
     static inline float bildUpplosning = 1.0f;   // skärmens interna upplösning (andel av den fysiska)
     Tryckyta* hjulMonster = nullptr;
 

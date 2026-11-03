@@ -28,6 +28,7 @@
 #include "Effekter.h"
 #include "Modulation.h"
 #include "../takt/Monster.h"
+#include "../takt/Laten.h"
 #include "../takt/Taktverket.h"
 
 namespace km
@@ -72,6 +73,8 @@ struct MotorParams
     float master = 0.65f;
     float spanning = 0.0f;        // 0..1: Spänningen
     double musikalisktVarv = 1.0; // Varvtalet i musikaliskt läge (1 = av; skivspelarläget sköts av processorn)
+    bool latLage = false;         // låtläget: Låten styr mönster, varianter och tystnad takt för takt
+    bool latLoopa = true;         // efter sista raden: börja om (annars tyst)
     ModParams mod;
 };
 
@@ -80,6 +83,7 @@ struct Banker
 {
     TonBank kolvbasen, kolvbas2, hugget;
     TrumBank trummor;
+    Laten laten;
     TonBank& ton (int kanal) { return kanal == 0 ? kolvbasen : (kanal == 1 ? kolvbas2 : hugget); }
     const TonBank& ton (int kanal) const { return kanal == 0 ? kolvbasen : (kanal == 1 ? kolvbas2 : hugget); }
 };
@@ -157,6 +161,7 @@ public:
             huggHaller = -1;
             antalVantande = 0;
             antalHuggAv = 0;
+            latOmvardera = true;
         }
         if (! gar)
         {
@@ -166,6 +171,7 @@ public:
                 spelarMonster[(size_t) k].store (-1, std::memory_order_relaxed);
                 aktuelltSteg[(size_t) k].store (-1, std::memory_order_relaxed);
             }
+            latRadNu.store (-1, std::memory_order_relaxed);
         }
 
         auto midiIt = midi.cbegin();
@@ -266,6 +272,7 @@ public:
     std::array<std::atomic<float>, scopeLangd> scope {};
     std::atomic<int> scopePos { 0 };
     std::atomic<juce::int64> antalSpeladeSteg { 0 };
+    std::atomic<int> latRadNu { -1 }, latTaktNu { 0 };              // låtläget: spelande rad (−1 = ingen) och takt i raden
     int getTransponering() const { return transponering; }
     float getKlamReduktionDb() const { return klam.getReduktionDb(); }
     const Modulation& getModulation() const { return modulation; }
@@ -297,7 +304,8 @@ private:
         }
 
         // --- Spänningen: hela maskinen mot mer energi, nivån kompenserad.
-        const float s = std::clamp (bas.spanning + m (ModMal::Spanningen), 0.0f, 1.0f);
+        const float spanBas = latAktiv && ! latSlut && latNu.spanning >= 0 ? (float) latNu.spanning * 0.01f : bas.spanning;
+        const float s = std::clamp (spanBas + m (ModMal::Spanningen), 0.0f, 1.0f);
         if (s > 0.001f)
         {
             for (auto& k : e.kolvbas)
@@ -356,7 +364,8 @@ private:
         for (size_t k = 0; k < (size_t) antalKanaler; ++k)
         {
             const auto& kp = e.kanaler[k];
-            mal[k] = (kp.tyst || (nagonSolo && ! kp.solo)) ? 0.0f : kp.niva;
+            const bool latTyst = latAktiv && (latSlut || latNu.tyst[k]);
+            mal[k] = (kp.tyst || latTyst || (nagonSolo && ! kp.solo)) ? 0.0f : kp.niva;
             if (forstaBlocket) kanalNiva[k] = mal[k];
             const float vinkel = (std::clamp (kp.pan, -1.0f, 1.0f) + 1.0f) * (float) pi * 0.25f;
             panL[k] = std::cos (vinkel) * 1.41421356f;
@@ -426,6 +435,12 @@ private:
         else if (m.isNoteOff()) b.noteOff (m.getNoteNumber());
     }
 
+    Variant variantAv (Kanal c) const
+    {
+        return latAktiv ? (Variant) latNu.variant[(size_t) c] : bas.kanaler[(size_t) c].variant;
+    }
+    int latTransponering() const { return latAktiv && ! latSlut ? latNu.transponering : 0; }
+
     static int variantFor (Variant v, juce::int64 k, int langd)
     {
         if (v == Variant::AB) return (int) ((k / juce::jmax (1, langd)) & 1);
@@ -436,10 +451,29 @@ private:
     {
         antalSpeladeSteg.fetch_add (1, std::memory_order_relaxed);
 
-        // Nytt mönster tar över på nästa takt.
-        if (k % 16 == 0)
-            for (size_t c = 0; c < (size_t) antalKanaler; ++c)
-                aktivtMonster[c] = bas.kanaler[c].monster;
+        // Nytt mönster tar över på nästa takt. I låtläget bestämmer Låten (även direkt efter start eller hopp).
+        if (k % 16 == 0 || latOmvardera)
+        {
+            latOmvardera = false;
+            latAktiv = bas.latLage && ! banker.laten.arTom();
+            if (latAktiv)
+            {
+                const auto plats = banker.laten.plats (k / 16, bas.latLoopa);
+                latSlut = plats.rad < 0;
+                if (! latSlut) latNu = banker.laten.get (plats.rad);
+                for (size_t c = 0; c < (size_t) antalKanaler; ++c) aktivtMonster[c] = latNu.monster[c];
+                latRadNu.store (plats.rad, std::memory_order_relaxed);
+                latTaktNu.store (plats.taktIRad, std::memory_order_relaxed);
+                tillampa();
+            }
+            else
+            {
+                if (k % 16 == 0)
+                    for (size_t c = 0; c < (size_t) antalKanaler; ++c)
+                        aktivtMonster[c] = bas.kanaler[c].monster;
+                latRadNu.store (-1, std::memory_order_relaxed);
+            }
+        }
 
         const double perSteg = taktverket.samplesPerSteg();
 
@@ -449,7 +483,7 @@ private:
             const int langd = juce::jlimit (1, maxSteg, kp.langd);
             const int steg = (int) (k % langd);
             const int m = aktivtMonster[(size_t) Kanal::Stampverket];
-            const auto& monster = banker.trummor.get (m, variantFor (kp.variant, k, langd));
+            const auto& monster = banker.trummor.get (m, variantFor (variantAv (Kanal::Stampverket), k, langd));
             aktuelltSteg[(size_t) Kanal::Stampverket].store (steg, std::memory_order_relaxed);
             spelarMonster[(size_t) Kanal::Stampverket].store (m, std::memory_order_relaxed);
             for (int s = 0; s < TrumMonster::spar; ++s)
@@ -478,14 +512,14 @@ private:
             if (kk < 0) continue;
             const int steg = (int) (kk % langd);
             const int m = aktivtMonster[(size_t) kalla];
-            const auto& monster = banker.ton (kalla).get (m, variantFor (kp.variant, kk, langd));
+            const auto& monster = banker.ton (kalla).get (m, variantFor (variantAv ((Kanal) kalla), kk, langd));
             aktuelltSteg[(size_t) b].store (steg, std::memory_order_relaxed);
             spelarMonster[(size_t) b].store (folj ? -2 : m, std::memory_order_relaxed);   // −2: följer Kolvbasen
 
             const auto st = monster.get (steg);
             if (st.slag == 0) continue;   // paus: en glidande ton hålls kvar tills nästa ton
 
-            const int extra = b == 1 ? bas.transponering : 0;
+            const int extra = (b == 1 ? bas.transponering : 0) + latTransponering();
             const int ton = juce::jlimit (0, 127, bas.grundton + transponering + extra + st.tonhojd());
             const int gate = st.glid ? -1 : juce::jmax (1, (int) (perSteg * tonLangder[(size_t) st.langd]));
             kolvbas[(size_t) b].steg (ton, st.slag == 2, basHaller[(size_t) b], gate);
@@ -500,14 +534,14 @@ private:
             const int langd = juce::jlimit (1, maxSteg, kp.langd);
             const int steg = (int) (k % langd);
             const int m = aktivtMonster[(size_t) Kanal::Hugget];
-            const auto& monster = banker.hugget.get (m, variantFor (kp.variant, k, langd));
+            const auto& monster = banker.hugget.get (m, variantFor (variantAv (Kanal::Hugget), k, langd));
             aktuelltSteg[(size_t) Kanal::Hugget].store (steg, std::memory_order_relaxed);
             spelarMonster[(size_t) Kanal::Hugget].store (m, std::memory_order_relaxed);
             const auto st = monster.get (steg);
             if (st.slag != 0)
             {
                 if (huggHaller >= 0) { hugget.noteOff (huggHaller); huggHaller = -1; }
-                const int ton = juce::jlimit (0, 127, bas.grundton + 12 * (2 + bas.huggOktav) + transponering + st.tonhojd());
+                const int ton = juce::jlimit (0, 127, bas.grundton + 12 * (2 + bas.huggOktav) + transponering + latTransponering() + st.tonhojd());
                 const float vel = st.slag == 2 ? 1.0f : 0.72f;
                 hugget.noteOn (ton, vel);
                 modulation.tonPa (EnvUtlosare::Hugget, vel);
@@ -567,6 +601,8 @@ private:
     float limiterEnv = 0.0f, limiterSlapp = 0.999f, nivaKoef = 0.01f;
     std::array<float, antalKanaler> kanalNiva {}, mal {}, panL {}, panR {}, blockTopp {};
     int scopeRaknare = 0;
+    bool latAktiv = false, latSlut = false, latOmvardera = true;
+    LatRad latNu;
     std::array<int, antalKanaler> aktivtMonster {};
     int transponering = 0, kontrollRaknare = 0, huggHaller = -1;
     bool forstaBlocket = true;

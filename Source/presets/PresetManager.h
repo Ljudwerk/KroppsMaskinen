@@ -10,6 +10,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "FactoryPresets.h"
+#include "Ljudbanken.h"
 #include "../dsp/Motor.h"
 
 namespace km
@@ -19,7 +20,8 @@ class PresetManager
 {
 public:
     // 1: fas 0 (ett trummönster och ett tonmönster). 2: fas 1 (banker med 16 mönster × A/B per kanal).
-    static constexpr int formatVersion = 2;
+    // 3: fas 4 (låten, barnet "Laten").
+    static constexpr int formatVersion = 3;
     static inline const juce::String fileExtension { ".km87" };
 
     struct Entry
@@ -57,6 +59,14 @@ public:
                 if (! banker.hugget.get (nr, v).arTomt())    lagg ("hu", nr, v, banker.hugget.get (nr, v).toString());
             }
         tree.appendChild (m, nullptr);
+
+        tree.removeChild (tree.getChildWithName ("Laten"), nullptr);
+        if (! banker.laten.arTom())
+        {
+            juce::ValueTree l ("Laten");
+            l.setProperty ("text", banker.laten.toString(), nullptr);
+            tree.appendChild (l, nullptr);
+        }
     }
 
     // Läser och tar bort barnet. Falskt om filen är från en nyare version än vi förstår.
@@ -90,6 +100,13 @@ public:
                 }
             }
             tree.removeChild (m, nullptr);
+        }
+        banker.laten.rensa();
+        const auto l = tree.getChildWithName ("Laten");
+        if (l.isValid())
+        {
+            banker.laten.fromString (l["text"].toString());
+            tree.removeChild (l, nullptr);
         }
         tree.setProperty ("formatVersion", formatVersion, nullptr);
         return true;
@@ -131,6 +148,10 @@ public:
         return -1;
     }
 
+    // Lås mönstren: presets laddar bara ljudet (klang, effekter, modulation, mix) och lämnar mönster,
+    // låt, tempo, takt och kanalernas mönsterval som de är. Inställningen sparas inte.
+    bool lasMonster = false;
+
     bool load (int index)
     {
         if (index < 0 || index >= (int) entries.size()) return false;
@@ -138,6 +159,7 @@ public:
         if (e.factory) loadFactory (presets::factoryPresets()[(size_t) e.factoryIndex]);
         else if (! loadFile (e.file)) return false;
         state.state.setProperty ("presetName", e.name, nullptr);
+        for (int k = 0; k < antalKanaler; ++k) state.state.removeProperty (Ljudbanken::namnNyckel (k), nullptr);
         return true;
     }
 
@@ -185,14 +207,16 @@ private:
         // Spela-knappen behålls; allt annat till standard först, så att presets inte ärver från det förra ljudet.
         for (auto* param : state.processor.getParameters())
             if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
-                if (p->getParameterID() != params::id::spela)
+                if (p->getParameterID() != params::id::spela && ! (lasMonster && arMonsterParameter (p->getParameterID())))
                     setParam (*p, p->getDefaultValue());
 
         for (const auto& [paramId, value] : preset.values)
         {
+            if (lasMonster && arMonsterParameter (paramId)) continue;
             if (auto* p = state.getParameter (paramId)) setParam (*p, p->convertTo0to1 (value));
             else jassertfalse; // stavfel i FactoryPresets.h
         }
+        if (lasMonster) return;
 
         banker.trummor.rensa();
         banker.kolvbasen.rensa();
@@ -211,6 +235,13 @@ private:
         }
         for (const auto& t : preset.toner)
             banker.ton ((int) t.kanal).get (t.monster, t.variant).fromString (juce::String::fromUTF8 (t.text));
+
+        banker.laten.rensa();
+        if (preset.laten != nullptr)
+        {
+            banker.laten.fromString (juce::String::fromUTF8 (preset.laten));
+            if (auto* p = state.getParameter (params::id::latLage)) setParam (*p, 1.0f);
+        }
     }
 
     bool loadFile (const juce::File& f)
@@ -218,6 +249,19 @@ private:
         auto xml = juce::XmlDocument::parse (f);
         if (xml == nullptr || ! xml->hasTagName (state.state.getType())) return false;
         auto tree = juce::ValueTree::fromXml (*xml);
+        if (lasMonster)
+        {
+            // Bara parametrarna, utom de som hör till mönstren och takten.
+            if ((int) tree.getProperty ("formatVersion", 1) > formatVersion) return false;
+            for (const auto& c : tree)
+                if (c.hasType ("PARAM"))
+                {
+                    const auto id = c["id"].toString();
+                    if (id == params::id::spela || arMonsterParameter (id)) continue;
+                    if (auto* p = state.getParameter (id)) setParam (*p, p->convertTo0to1 ((float) c["value"]));
+                }
+            return true;
+        }
         if (! readPatterns (tree, banker)) return false;
         state.replaceState (tree);
         return true;

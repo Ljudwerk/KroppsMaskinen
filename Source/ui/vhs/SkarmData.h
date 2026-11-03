@@ -13,7 +13,7 @@ namespace km::vhs
 {
 
 // Vad panelen visar. Skärmens scen väljs av vy + kanal.
-enum class Vy { Kanal = 0, Sekvens, Mixer, Effekter, Modulation };
+enum class Vy { Kanal = 0, Sekvens, Mixer, Effekter, Modulation, Laten };
 
 // Bandstyrka: hur mycket VHS-fel som läggs på bilden (inställning i MENY, sparas i läget).
 enum class Bandstyrka { Av = 0, Lite, Mycket };

@@ -49,6 +49,7 @@ public:
 
     km::Banker banker;
     km::PresetManager presets { state, banker };
+    km::Ljudbanken ljud { state };
 
     // Det virtuella keyboardet i gränssnittet skriver hit; noterna blandas in i MIDI-flödet.
     juce::MidiKeyboardState keyboardState;
@@ -65,6 +66,8 @@ public:
     uint32_t trumSlag (int spar) const { return motor.trumSlag[(size_t) spar].load (std::memory_order_relaxed); }
     float kanalTopp (km::Kanal k) { return motor.kanalTopp[(size_t) k].exchange (0.0f, std::memory_order_relaxed); }
     double ppqNu() const { return motor.ppqNu.load (std::memory_order_relaxed); }
+    int latRad() const { return motor.latRadNu.load (std::memory_order_relaxed); }    // låtläget: spelande rad, −1 = ingen
+    int latTakt() const { return motor.latTaktNu.load (std::memory_order_relaxed); }
     float modKalla (km::ModKalla k) const { return motor.getModulation().kallVarde (k); }
     // Oscilloskopet: de senaste n värdena, äldst först.
     void lasScope (float* ut, int n) const
