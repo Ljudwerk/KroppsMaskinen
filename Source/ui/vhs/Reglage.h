@@ -23,6 +23,33 @@ using juce::Rectangle;
 using juce::Point;
 namespace farg = km::stil::farg;
 
+// Mushjul och styrplatta. Styrplattan på Macen skickar händelser utan rörelse när man rör vid eller
+// klickar på den; de ska inte räknas som ett steg nedåt. Små, mjuka rörelser samlas ihop till hela steg,
+// så att styrplattan inte rusar genom värdena. riktning() ger −1, 0 eller 1.
+struct Hjul
+{
+    float samlat = 0.0f;
+    int riktning (const juce::MouseWheelDetails& w)
+    {
+        float d = std::abs (w.deltaY) >= std::abs (w.deltaX) ? w.deltaY : w.deltaX;
+        if (w.isReversed) d = -d;
+        if (d == 0.0f) return 0;
+        if (! w.isSmooth) { samlat = 0.0f; return d > 0.0f ? 1 : -1; }
+        samlat += d;
+        if (std::abs (samlat) < 0.08f) return 0;
+        const int r = samlat > 0.0f ? 1 : -1;
+        samlat = 0.0f;
+        return r;
+    }
+    // För steglösa reglage: riktningen utan att samla ihop (0 om händelsen saknar rörelse).
+    static float steglos (const juce::MouseWheelDetails& w)
+    {
+        float d = std::abs (w.deltaY) >= std::abs (w.deltaX) ? w.deltaY : w.deltaX;
+        if (w.isReversed) d = -d;
+        return d == 0.0f ? 0.0f : (d > 0.0f ? 1.0f : -1.0f);
+    }
+};
+
 // Versaler, även å, ä och ö (toUpperCase klarar dem inte på alla system).
 inline juce::String versaler (const juce::String& s)
 {
@@ -170,13 +197,14 @@ public:
         const int steg = param.getNumSteps();
         float d = steg > 1 && steg < 200 ? 1.0f / (float) (steg - 1) : 0.02f;
         if (e.mods.isShiftDown()) d *= 0.2f;
-        const float riktning = (std::abs (w.deltaY) > 0.0f ? w.deltaY : w.deltaX) > 0.0f ? 1.0f : -1.0f;
-        sattNorm (norm() + riktning * d * (inv ? -1.0f : 1.0f) * (w.isReversed ? -1.0f : 1.0f), true);
+        const float riktning = steg > 1 && steg < 200 ? (float) hjul.riktning (w) : Hjul::steglos (w);
+        if (riktning != 0.0f) sattNorm (norm() + riktning * d * (inv ? -1.0f : 1.0f), true);
     }
 
 private:
     Point<float> centrum() const { return { (float) getWidth() * 0.5f, r > 14.0f ? r * 1.45f : 19.0f }; }
     float r;
+    Hjul hjul;
     stil::RattTyp rattTyp;
     bool inv;
     float startNorm = 0.0f, startY = 0.0f;
@@ -212,7 +240,7 @@ public:
     void mouseDoubleClick (const juce::MouseEvent&) override { sattNorm (param.getDefaultValue(), true); }
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w) override
     {
-        sattNorm (norm() + ((w.deltaY > 0.0f) != w.isReversed ? 0.02f : -0.02f), true);
+        if (const float r = Hjul::steglos (w); r != 0.0f) sattNorm (norm() + 0.02f * r, true);
     }
 
 private:
@@ -296,8 +324,9 @@ public:
     }
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w) override
     {
-        sattIndex (index() + ((w.deltaY > 0.0f) != w.isReversed ? 1 : -1));
+        if (const int r = hjul.riktning (w); r != 0) sattIndex (index() + r);
     }
+    Hjul hjul;
 
 private:
     int cell;
@@ -318,7 +347,7 @@ public:
     void mouseDoubleClick (const juce::MouseEvent&) override { sattNorm (param.getDefaultValue(), true); }
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w) override
     {
-        sattNorm (norm() + ((w.deltaY > 0.0f) != w.isReversed ? 0.02f : -0.02f), true);
+        if (const float r = Hjul::steglos (w); r != 0.0f) sattNorm (norm() + 0.02f * r, true);
     }
 
 private:
@@ -358,11 +387,14 @@ public:
     void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
     {
         const float steg = (dec > 0 && e.mods.isShiftDown()) ? 0.1f : 1.0f;
-        koppling.setValueAsCompleteGesture (param.getNormalisableRange().snapToLegalValue (varde + ((w.deltaY > 0.0f) != w.isReversed ? steg : -steg)));
+        const int r = hjul.riktning (w);
+        if (r == 0) return;
+        koppling.setValueAsCompleteGesture (param.getNormalisableRange().snapToLegalValue (varde + (float) r * steg));
         visaVarde();
     }
 
 private:
+    Hjul hjul;
     int dec;
     float ppe, startV = 0.0f, startY = 0.0f;
 };

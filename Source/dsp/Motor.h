@@ -22,6 +22,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 #include "Kolvbasen.h"
+#include "Stamning.h"
 #include "Stampverket.h"
 #include "Hugget.h"
 #include "Drivet.h"
@@ -76,6 +77,8 @@ struct MotorParams
     double musikalisktVarv = 1.0; // Varvtalet i musikaliskt läge (1 = av; skivspelarläget sköts av processorn)
     bool latLage = false;         // låtläget: Låten styr mönster, varianter och tystnad takt för takt
     bool latLoopa = true;         // efter sista raden: börja om (annars tyst)
+    int stamning = 0;             // StamningTyp
+    int stamningTon = 0;          // tonikan: 0 = grundtonen, 1–12 = C … H
     ModParams mod;
 };
 
@@ -95,7 +98,10 @@ public:
     void prepare (double sampleRate)
     {
         sr = sampleRate;
-        for (auto& k : kolvbas) k.prepare (sampleRate);
+        for (auto& k : kolvbas) { k.prepare (sampleRate); k.setStamning (&stamningTabell); }
+        hugget.setStamning (&stamningTabell);
+        stamningNyckel = -1;
+        uppdateraStamning();
         stampverket.prepare (sampleRate);
         hugget.prepare (sampleRate);
         taktverket.prepare (sampleRate);
@@ -143,6 +149,7 @@ public:
     void setParams (const MotorParams& p)
     {
         bas = p;
+        uppdateraStamning();
         modulation.setParams (p.mod);
         tillampa();
     }
@@ -278,7 +285,24 @@ public:
     float getKlamReduktionDb() const { return klam.getReduktionDb(); }
     const Modulation& getModulation() const { return modulation; }
 
+    // Den egna (Scala-)stämningen, som processorn äger.
+    void setEgenStamning (const EgenStamning* e) { egenStamning = e; stamningNyckel = -1; }
+    const StamningTabell& getStamningTabell() const { return stamningTabell; }
+
 private:
+    // Räknar om stämningstabellen när stämningen, tonikan, grundtonen eller den egna skalan ändras.
+    void uppdateraStamning()
+    {
+        const juce::int64 nyckel = (juce::int64) bas.stamning + 16 * bas.stamningTon + 256 * bas.grundton
+                                 + 65536 * (juce::int64) (bas.stamning == (int) StamningTyp::Egen && egenStamning != nullptr ? egenStamning->getVersion() : 0);
+        if (nyckel == stamningNyckel) return;
+        stamningNyckel = nyckel;
+        const auto typ = (StamningTyp) juce::jlimit (0, antalStamningar - 1, bas.stamning);
+        const int ankare = tonikaTangent (bas.grundton, bas.stamningTon);
+        if (typ == StamningTyp::Egen && egenStamning != nullptr) raknaTabell (egenStamning->hamta(), ankare, stamningTabell);
+        else raknaTabell (Skala::inbyggd (typ), ankare, stamningTabell);
+    }
+
     // Lägger på Varvtalet (musikaliskt), Spänningen och modulationen och skickar ut parametrarna.
     void tillampa()
     {
@@ -512,6 +536,7 @@ private:
             if (bas.kanaler[(size_t) b].midi) continue;   // spelas från MIDI
             const bool folj = b == 1 && bas.foljKolvbasen;
             const int kalla = folj ? 0 : b;                    // vems mönster som spelas
+            if (bas.kanaler[(size_t) kalla].midi) continue;    // följer en kanal som spelas från MIDI
             const auto& kp = bas.kanaler[(size_t) kalla];
             const int langd = juce::jlimit (1, maxSteg, kp.langd);
             const juce::int64 kk = folj ? k - bas.forskjutning : k;
@@ -596,6 +621,9 @@ private:
     std::array<Kolvbasen, 2> kolvbas;
     Stampverket stampverket;
     Hugget hugget;
+    StamningTabell stamningTabell {};
+    const EgenStamning* egenStamning = nullptr;
+    juce::int64 stamningNyckel = -1;
     Taktverket taktverket;
     std::array<Drivet, 5> drivet;           // Kolvbasen, Kolvbas 2, Stampverket, Hugget vänster och höger
     Grindrummet grindrum;

@@ -112,6 +112,7 @@ public:
     }
 
     void setParams (const KolvbasParams& p) { params = p; }
+    void setStamning (const std::array<double, 128>* t) { tabell = t; }
 
     // Från keyboardet eller MIDI: håller reda på nedtryckta tangenter för legato och glid.
     void noteOn (int note, float velocity)
@@ -125,7 +126,7 @@ public:
     void noteOff (int note)
     {
         removeHeld (note);
-        if (numHeld > 0) targetNote = (double) held[(size_t) numHeld - 1];
+        if (numHeld > 0) { const double t = tunad (held[(size_t) numHeld - 1]); if (! std::isnan (t)) targetNote = t; }
         else slapp();
     }
 
@@ -211,9 +212,14 @@ public:
 private:
     enum class Stage { Av, Anslag, Fall, Slapp };
 
+    // Tangentens tonhöjd enligt stämningen (liksvävande tonnummer, NaN = tyst tangent).
+    double tunad (int note) const { return tabell != nullptr ? (*tabell)[(size_t) std::clamp (note, 0, 127)] : (double) note; }
+
     void spela (int note, bool accent, bool legato)
     {
-        targetNote = (double) note;
+        const double t = tunad (note);
+        if (std::isnan (t)) return;
+        targetNote = t;
         glidKoef = legato ? tidskonstant (params.glid, sr) : 1.0f;
         if (legato) return; // glid: inga nya envelopes
 
@@ -266,6 +272,7 @@ private:
     std::array<int, 16> held {};
     int numHeld = 0;
     double targetNote = 36.0, currentNote = 36.0;
+    const std::array<double, 128>* tabell = nullptr;
     float glidKoef = 1.0f;
 
     double ph = 0.0, ph2 = 0.0, phSub = 0.0;

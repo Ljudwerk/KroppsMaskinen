@@ -2,7 +2,7 @@
 
 *Modell KM-87. En groovebox för Electronic Body Music och New Beat, byggd som om den kom ur en svart hemelektroniklåda från 1987 och bara gick att se på genom en VHS-skärm.*
 
-**Status:** Fas 0–3 klara och grind 0–3 godkända. Fas 4, fabriksbandet (1.0), är byggd och väntar på grind 4. Se README.md. Stilprovet och loggan godkändes i fas 1 (2 november 2026).
+**Status:** Fas 0–3 klara och grind 0–3 godkända. Fas 4, fabriksbandet (1.0), är byggd och väntar på grind 4 (inga externa testare än). Fas 5 är påbörjad: mikrotonala stämningar och Gjuteriet (fysiskt modellerad metall) är klara i kod; pads och drön (femte kanalen) är nästa. Se README.md. Stilprovet och loggan godkändes i fas 1 (2 november 2026).
 
 Instrument-plugin (VST3, AU, CLAP) och fristående app för macOS, på samma stack som KrangBox. Allt ljud är syntetiskt. Allt i gränssnittet är på svenska.
 
@@ -25,7 +25,7 @@ Det som kännetecknar genren och som maskinen måste klara:
 KrangBox växte till femton kammare. Det gör inte Kroppsmaskinen. Det här skjuts upp tills 1.0 är klar och grind 4 passerad:
 
 - Vokoder och röstmodul (*Ropet*, se fas 5)
-- Pads, drönljud, fysisk modellering, mikrotonala stämningar
+- Pads, drönljud, fysisk modellering, mikrotonala stämningar (påbörjade i fas 5 före grind 4, se nedan)
 - Sampling av egna filer
 - Windows och Linux
 
@@ -254,12 +254,17 @@ Varje fas slutar med en **grind**: ett lyssnings- eller granskningstest som mås
 - Två demolåtar i Reaper-mappen.
 - Signering och notarisering för macOS.
 
-*Klar i kod, väntar på grind 4. Avvikelser från planen: "kedjor och låtläge" blev ett låtläge med rader (`Source/takt/Laten.h`, vyn LÅTEN): varje rad anger mönster, variant och tystnad för alla fyra kanalerna, antal takter och valfritt Spänningen och en transponering; låten följer DAW:ens position och sparas med presetet (formatversion 3). Kedjor per kanal byggdes inte, eftersom låtraderna gör samma sak för alla kanaler samtidigt. Fabriksbandet har 40 presets (Init och 39 i EBM, New Beat och Industri) och dessutom två demolåtar i kategorin Demo (*Stålverket 128* och *Antwerpen 110*), alltså 42 poster; de nya presetsen följer mönsterplanen 1 grundgroove, 2 refräng/kontrast, 3 intro, 4 fill/uppbygge, och ett mönster med bara A får en kopia som B. Demolåtarna ligger i Reaper-mappen som projekt utan automation – låtläget sköter arrangemanget. Manualen finns i README (Ett spår på en timme, Låtläget, Fabriksbandet). Tillägg efter önskemål: **Ljudbanken** – ljud per kanal (bas, trummor, Hugget) som byter bara klangen, fabriksljuden hämtade ur fabriksbandet och egna ljud sparade som `.km87ljud` – och **Lås mönstren**, så att presets kan laddas som rena ljuduppsättningar utan att mönster, låt och tempo byts. Dessutom **MIDI-spel** per kanal (kanalen spelas av inkommande MIDI i stället för av sekvensern) och manualerna `docs/Bygga_en_lat.md` och `docs/Kroppsmaskinen_i_Reaper.md`. Sidorna MIXER, EFFEKTER, MODULATION, SEKVENS och LÅTEN är egna stora vyer (som i KrangBox), och vyknapparna ligger i en list under rattarna. **Signering och notarisering är uppskjutna** (beslut 2 november 2026): grind 4 görs med osignerade byggen.*
+*Klar i kod, väntar på grind 4. Avvikelser från planen: "kedjor och låtläge" blev ett låtläge med rader (`Source/takt/Laten.h`, vyn LÅTEN): varje rad anger mönster, variant och tystnad för alla fyra kanalerna, antal takter och valfritt Spänningen och en transponering; låten följer DAW:ens position och sparas med presetet (formatversion 3). Kedjor per kanal byggdes inte, eftersom låtraderna gör samma sak för alla kanaler samtidigt. Fabriksbandet har 40 presets (Init och 39 i EBM, New Beat och Industri) och dessutom två demolåtar i kategorin Demo (*Stålverket 128* och *Antwerpen 110*), alltså 42 poster; de nya presetsen följer mönsterplanen 1 grundgroove, 2 refräng/kontrast, 3 intro, 4 fill/uppbygge, och ett mönster med bara A får en kopia som B. Demolåtarna ligger i Reaper-mappen som projekt utan automation – låtläget sköter arrangemanget. Manualen finns i README (Ett spår på en timme, Låtläget, Fabriksbandet). Tillägg efter önskemål: **Ljudbanken** – ljud per kanal (bas, trummor, Hugget) som byter bara klangen, fabriksljuden hämtade ur fabriksbandet och egna ljud sparade som `.km87ljud` – och **Lås mönstren**, så att presets kan laddas som rena ljuduppsättningar utan att mönster, låt och tempo byts. Dessutom **MIDI-spel** per kanal (kanalen spelas av inkommande MIDI i stället för av sekvensern) och **ALLT FRÅN MIDI** under räkneverket, som tystar hela sekvensern; MIDI-läget och SPELA följer inte med presets (de räknas som uppkoppling, inte som låt), så att man kan byta ljud i en DAW utan att sekvensern startar och manualerna `docs/Bygga_en_lat.md` och `docs/Kroppsmaskinen_i_Reaper.md`. Sidorna MIXER, EFFEKTER, MODULATION, SEKVENS och LÅTEN är egna stora vyer (som i KrangBox), och vyknapparna ligger i en list under rattarna. **Signering och notarisering är uppskjutna** (beslut 2 november 2026): grind 4 görs med osignerade byggen.*
 
 **Grind 4:** Någon som inte byggt maskinen gör ett spår på en timme med bara fabriksbandet och manualen.
 
-### Fas 5 – Efter 1.0 (kandidater)
+### Fas 5 – Efter 1.0
 
+Påbörjad 3 november 2026, före grind 4 (det finns inga externa testare än; grind 4 görs när det finns, och 1.0-ljuden är oförändrade: liksvävande stämning och de fyra första kiten låter som förut). Ordning: stämningarna, metallen i Stampverket, sedan den femte kanalen.
+
+- **Mikrotonala stämningar** – *klar i kod.* En global stämning för Kolvbasen, Kolvbas 2 och Hugget (`Source/dsp/Stamning.h`): elva inbyggda (liksvävande, ren, pytagoreisk, medeltonig, Werckmeister III, Rast, Bayati, Slendro, Pelog, 24-TET, 19-TET) och Egen med Scala-filer (`.scl` och `.kbm`). Tonikan är grundtonen eller en vald ton. Motorn räknar en tabell från tangent till liksvävande tonnummer, så glid, transponering och modulation fungerar som förut; trummorna påverkas inte. Den egna skalans text sparas i läget (egenskaperna `scl`, `kbm`, `sclNamn`). Parametrarna *Stämning* och *Stämningens tonika* ligger sist i listan och räknas som låt (Lås mönstren behåller dem). Reglagen sitter i MIXER-vyns *Takt och master*.
+- **Metall i Stampverket** – *klar i kod.* Ett femte kit, **Gjuteriet**, med fysiskt modellerade kroppar: modala resonatorer (upp till 32 per röst) för stav, rör (med svävande par), plåt (rektangulär, fritt upplagd), oljefatets botten (cirkulärt membran), städ och kyrkklocka, anslagna av en klubba vars längd ger hårdheten och vars plats väger moderna; kedjan är många slumpade anslag med varierande länkar, och fjädern en fördröjning med en allpasskedja (dispersion). Spåren, MIDI-tonerna och reglagen (Stämning, Klang, Nivå) är desamma som i de andra kiten. Kitet heter Gjuteriet för att inte förväxlas med presetet *Smedjan 118*.
+- **Pads och drön:** en femte, polyfon kanal med MIDI-kanal 4, egen remsa i MIXER, egen KANAL-sida och egen rad i låtläget.
 - **Ropet:** vokoder med sidokedjeingång och inbyggd talmaskin (formantsyntesen från Automaten i KrangBox) för robotparoller.
 - MIDI ut från Taktverket, så att sekvensrarna kan styra hårdvara.
 - Gemensamt bibliotek med KrangBox om de kopierade filerna börjar glida isär.
@@ -282,6 +287,8 @@ Varje fas slutar med en **grind**: ett lyssnings- eller granskningstest som mås
 - **16 stegknappar med sidbyte** (sidorna I–IV, upp till 64 steg). EBM- och New Beat-mönster är nästan alltid en takt sextondelar, så en takt syns i sin helhet utan att bläddra. 16 knappar i fyra grupper om fyra är dessutom 808/909-greppet som genren byggdes på, och knapparna blir tillräckligt stora för att träffa även vid 60 % skala. Fyra sidlampor visar vilken sida som spelas och vilken som redigeras; läget **Följ** låter redigeringssidan hänga med uppspelningen.
 - **Låtläget är en låt med rader** (som 909:ans), inte kedjor per kanal. Demolåtarna styrs av låtläget, inte av automation.
 - **Signering och notarisering skjuts upp** till efter grind 4.
+- **Fas 5 börjar före grind 4** (beslut 3 november 2026): det finns inga externa testare än. Pads och drön blir en femte kanal, metallen ett femte kit (Gjuteriet), stämningen global med Scala-filer.
+- **MIDI-läget hör till uppkopplingen, inte till presetet.** ALLT FRÅN MIDI, kanalernas MIDI-spel och SPELA behålls när presets byts (beslut 3 november 2026).
 - **Presets och mönster får ett eget format**, utan hänsyn till KrangBox. Formatet får ett versionsnummer från första bygget, så att senare ändringar kan läsa äldre filer.
 - GitHub-repot heter **`mikkeschiren/Kroppsmaskinen`**.
 

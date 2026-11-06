@@ -3,8 +3,8 @@
 // Varje kolumn är en rad i låten: takter, mönster för de fyra kanalerna, Spänningen och transponeringen.
 // Klick på radnumret väljer raden (KOPIERA, TA BORT och HÄMTA verkar på vald rad); klick på den första
 // tomma kolumnen lägger till en rad. Mönsterrutorna: dra eller rulla för mönstret, klicka för varianten
-// (A → B → A+B), högerklick tystar kanalen på raden. Takter, Spänningen och transponeringen: dra eller
-// rulla; dubbelklick nollställer (Spänningen blir "–", rör inte).
+// (A → B → A+B), högerklick tystar kanalen på raden. Takter, Spänningen och transponeringen: klick = upp
+// ett steg, högerklick/Alt-klick = ned, dra eller rulla; dubbelklick nollställer (Spänningen blir "–").
 //
 // Copyright (C) 2026 Kroppsmaskinen-teamet. Licens: AGPLv3, se LICENSE.
 #pragma once
@@ -131,6 +131,13 @@ public:
 
     void mouseUp (const juce::MouseEvent& e) override
     {
+        // Takter, Spänningen och transponeringen: klick = ett steg upp, högerklick (eller Alt-klick) = ett
+        // steg ned. Andra klicket i ett dubbelklick räknas inte (dubbelklicket nollställer).
+        if (cellRad >= 0 && ! drog && (cellRadIVy == 1 || cellRadIVy >= 6) && e.getNumberOfClicks() < 2)
+        {
+            const int r = e.mods.isPopupMenu() || e.mods.isAltDown() ? -1 : 1;
+            sattVarde (cellRad, cellRadIVy, startVarde + r * (cellRadIVy == 6 ? 10 : 1));
+        }
         if (cellRad >= 0 && ! drog && ! e.mods.isPopupMenu() && cellRadIVy >= 2 && cellRadIVy <= 5)
         {
             auto lr = laten().get (cellRad);
@@ -159,7 +166,8 @@ public:
     void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
     {
         const int iv = radVid (e.position.y);
-        const int riktning = (w.deltaY > 0.0f) != w.isReversed ? 1 : -1;
+        const int riktning = hjul.riktning (w);
+        if (riktning == 0) return;
         if (e.position.x < etikettB || iv == 0) { sida = (sida + (riktning > 0 ? 3 : 1)) % 4; repaint(); return; }
         const int rad = sida * 16 + juce::jlimit (0, 15, (int) ((e.position.x - etikettB) / cellB()));
         if (rad >= laten().antal()) return;
@@ -225,6 +233,7 @@ private:
     void andrat() { repaint(); lage.meddela(); }
 
     PanelLage& lage;
+    Hjul hjul;
     juce::int64 hash = 0;
     int cellRad = -1, cellRadIVy = 0, startVarde = 0, forraSpelar = -1;
     float startY = 0.0f;

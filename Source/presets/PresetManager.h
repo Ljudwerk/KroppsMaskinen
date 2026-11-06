@@ -207,12 +207,12 @@ private:
         // Spela-knappen behålls; allt annat till standard först, så att presets inte ärver från det förra ljudet.
         for (auto* param : state.processor.getParameters())
             if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
-                if (p->getParameterID() != params::id::spela && ! (lasMonster && arMonsterParameter (p->getParameterID())))
+                if (! arUppkoppling (p->getParameterID()) && ! (lasMonster && arMonsterParameter (p->getParameterID())))
                     setParam (*p, p->getDefaultValue());
 
         for (const auto& [paramId, value] : preset.values)
         {
-            if (lasMonster && arMonsterParameter (paramId)) continue;
+            if (arUppkoppling (paramId) || (lasMonster && arMonsterParameter (paramId))) continue;
             if (auto* p = state.getParameter (paramId)) setParam (*p, p->convertTo0to1 (value));
             else jassertfalse; // stavfel i FactoryPresets.h
         }
@@ -257,13 +257,20 @@ private:
                 if (c.hasType ("PARAM"))
                 {
                     const auto id = c["id"].toString();
-                    if (id == params::id::spela || arMonsterParameter (id)) continue;
+                    if (arUppkoppling (id) || arMonsterParameter (id)) continue;
                     if (auto* p = state.getParameter (id)) setParam (*p, p->convertTo0to1 ((float) c["value"]));
                 }
             return true;
         }
         if (! readPatterns (tree, banker)) return false;
+        // Uppkopplingen (spela, MIDI-spel) följer inte med presetet: läs av den före och sätt tillbaka den.
+        std::vector<std::pair<juce::RangedAudioParameter*, float>> behall;
+        for (auto* param : state.processor.getParameters())
+            if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
+                if (arUppkoppling (p->getParameterID())) behall.emplace_back (p, p->getValue());
         state.replaceState (tree);
+        for (auto& [p, v] : behall)
+            if (p->getValue() != v) setParam (*p, v);
         return true;
     }
 

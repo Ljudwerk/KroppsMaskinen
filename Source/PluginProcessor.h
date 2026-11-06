@@ -7,7 +7,8 @@
 #include "presets/PresetManager.h"
 #include <atomic>
 
-class KroppsmaskinenProcessor final : public juce::AudioProcessor
+class KroppsmaskinenProcessor final : public juce::AudioProcessor,
+                                      private juce::ValueTree::Listener
 {
 public:
     KroppsmaskinenProcessor();
@@ -81,6 +82,14 @@ public:
     double speltid() const { const double sr = forberedd.load(); return sr > 0.0 ? (double) speltidSampel.load() / sr : 0.0; }
     void spola() { spolaBegaran.store (true); speltidSampel.store (0); }
 
+    // Stämningen "Egen (Scala)": .scl- och .kbm-texten sparas i läget (och i egna presets) som
+    // egenskaperna "scl" och "kbm"; den tolkade skalan läses av motorn.
+    km::EgenStamning egenStamning;
+    bool lasStamningsfil (const juce::File& f, juce::String& fel);
+    void taBortKarta() { state.state.removeProperty ("kbm", nullptr); }
+    juce::String egenStamningNamn() const;
+    bool harKarta() const { return state.state.hasProperty ("kbm"); }
+
     // Panelens egna inställningar (bandstyrka, skala): sparas i läget men inte i presets.
     juce::ValueTree panelLage { "Panel" };
 
@@ -92,6 +101,13 @@ public:
     juce::int64 spelade() const { return motor.antalSpeladeSteg.load (std::memory_order_relaxed); }
 
 private:
+    void uppdateraEgenStamning();
+    void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier& id) override
+    {
+        if (id == juce::Identifier ("scl") || id == juce::Identifier ("kbm")) uppdateraEgenStamning();
+    }
+    void valueTreeRedirected (juce::ValueTree&) override { uppdateraEgenStamning(); }
+
     km::params::Reader reader { state };
     km::Motor motor;
     juce::AudioBuffer<float> scratchRight;

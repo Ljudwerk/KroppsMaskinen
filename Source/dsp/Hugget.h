@@ -58,7 +58,7 @@ public:
     void prepare (double s, int nr) { sr = s; nummer = nr; slump = Slump (0x48554747u + (uint32_t) nr * 101u); reset(); }
     void reset() { aktiv = false; amp = 0.0f; stage = 0; for (auto& f : filter) f.reset(); }
 
-    void starta (int ton_, float vel_, uint64_t ordning_)
+    void starta (double ton_, float vel_, uint64_t ordning_)
     {
         ton = ton_; vel = vel_; ordning = ordning_;
         t = 0; stage = 1; aktiv = true;
@@ -71,7 +71,6 @@ public:
 
     bool arAktiv() const { return aktiv; }
     bool slapps() const { return stage == 3; }
-    int getTon() const { return ton; }
     uint64_t getOrdning() const { return ordning; }
 
     // Ett sample, stereo (adderas till l och r).
@@ -202,7 +201,8 @@ private:
     }
 
     double sr = 48000.0;
-    int nummer = 0, ton = 60, stage = 0;
+    int nummer = 0, stage = 0;
+    double ton = 60.0;   // liksvävande tonnummer (efter stämningen)
     float vel = 1.0f, amp = 0.0f;
     bool aktiv = false;
     int64_t t = 0;
@@ -221,6 +221,7 @@ public:
     void prepare (double sr) { for (int i = 0; i < antalRoster; ++i) roster[(size_t) i].prepare (sr, i); reset(); }
     void reset() { for (auto& r : roster) r.reset(); raknare = 0; }
     void setParams (const HuggParams& p) { params = p; }
+    void setStamning (const std::array<double, 128>* t) { tabell = t; }
 
     // En ton (från sekvensern eller keyboardet) spelar hela ackordet.
     void noteOn (int ton, float vel)
@@ -247,6 +248,8 @@ public:
 private:
     void startaRost (int ton, float vel, int grund)
     {
+        const double tunad = tabell != nullptr ? (*tabell)[(size_t) std::clamp (ton, 0, 127)] : (double) ton;
+        if (std::isnan (tunad)) return;   // tyst tangent i stämningen
         // Ledig röst, annars den som släpps sedan längst, annars den äldsta.
         int val = -1;
         for (int i = 0; i < antalRoster && val < 0; ++i) if (! roster[(size_t) i].arAktiv()) val = i;
@@ -258,7 +261,7 @@ private:
                     if ((pass == 1 || roster[(size_t) i].slapps()) && roster[(size_t) i].getOrdning() < aldst)
                     { aldst = roster[(size_t) i].getOrdning(); val = i; }
         }
-        roster[(size_t) val].starta (ton, vel, ++raknare);
+        roster[(size_t) val].starta (tunad, vel, ++raknare);
         grundTon[(size_t) val] = grund;
     }
 
@@ -266,6 +269,7 @@ private:
     std::array<HuggRost, antalRoster> roster;
     std::array<int, antalRoster> grundTon {};
     uint64_t raknare = 0;
+    const std::array<double, 128>* tabell = nullptr;
 };
 
 } // namespace km

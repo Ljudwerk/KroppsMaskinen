@@ -21,6 +21,7 @@
 //    2. Varje ljud för sig – Kolvbasen i båda filtren, med synk, Kolvbas 2, och alla tolv trummor i alla
 //       fyra kit: inga NaN, topp högst 0 dBFS, ingen DC, tyst efter släpp. Varje kit skrivs som WAV.
 //    3. Taktverket: bastrumman slår exakt på sina steg (±4 samples) vid 125 BPM.
+//       Dessutom tio minuter i 128 BPM med egen klocka och med DAW-transport: tempot glider inte.
 //    4. Livebyte: ett nytt mönster tar över på nästa takt, inte mitt i.
 //    5. Tyst och solo: solo på Stampverket låter som Kolvbasen tyst.
 //    6. Följ Kolvbasen: Kolvbas 2 med samma ljud och ingen förskjutning låter exakt som Kolvbasen.
@@ -43,6 +44,8 @@
 //   21. Ljudbanken: ett ljud byter bara kanalens klang (mönster, tempo och mix står kvar), alla fabriksljud
 //       låter rent, och Lås mönstren laddar ett preset utan att mönster och tempo byts.
 //   22. MIDI-spel: en kanal som spelas från MIDI tystnar i sekvensern och spelas av MIDI-tonerna medan sekvensern går.
+//   23. Stämningen: tabellerna, Scala-filerna och att Kolvbasen och Hugget hamnar rätt (Rast, en kvartston låg).
+//   24. Gjuteriet: modernas frekvenser, stämning, klang, kedjans anslag och fjädern.
 //
 // Grind 0-loopen hamnar i renders/grind0_kolv125.wav, grind 1-looparna i renders/grind1_*.wav.
 //
@@ -50,6 +53,8 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include "PluginProcessor.h"
 #include "presets/FactoryPresets.h"
+
+void testaLangTakt();   // efter LatsadDaw längre ned
 
 namespace
 {
@@ -296,7 +301,7 @@ void testaLjud (const juce::File& katalog)
                 if (const int at = (int) (t * 0.5 * sr); at >= pos && at < pos + n)
                     m.addEvent (juce::MidiMessage::noteOn (10, km::Stampverket::notForSpar (t), 1.0f), at - pos);
         });
-        static const char* kitNamn[] = { "attaatta", "niononio", "digital", "fabrik" };
+        static const char* kitNamn[] = { "attaatta", "niononio", "digital", "fabrik", "gjuteriet" };
         skrivWav (ut, katalog.getChildFile (juce::String ("kit_") + kitNamn[kit] + ".wav"));
     }
 }
@@ -317,6 +322,7 @@ void testaTakt()
     int vart = 0;
     for (size_t i = 0; i < a.size(); ++i) vart = juce::jmax (vart, (int) std::abs (a[i] - (double) i * fjardedel));
     kontroll (a.size() >= 8 && vart <= 4, juce::String ((int) a.size()) + juce::String::fromUTF8 (" slag, största avvikelse ") + juce::String (vart) + " samples");
+    testaLangTakt();
 }
 
 void testaLivebyte()
@@ -988,9 +994,241 @@ void testaMidiSpel()
         kontroll (utan.rms < 0.001 && med.rms > 0.005,
                   juce::String::fromUTF8 ("Stampverket från MIDI: utan toner ") + juce::String (dB (utan.rms), 1) + juce::String::fromUTF8 (" dB, bastrumma på kanal 10 ") + juce::String (dB (med.rms), 1) + " dB");
     }
+    // Kolvbas 2 som följer Kolvbasen tystnar också när Kolvbasen spelas från MIDI.
+    {
+        auto folj = [] (bool midi)
+        {
+            auto p = nyProcessor();
+            p->presets.loadByName ("Kolv 125");
+            satt (*p, id::folj, 1.0f);
+            satt (*p, id::kanal (1, "solo"), 1.0f);
+            satt (*p, id::kanal (0, "midi"), midi ? 1.0f : 0.0f);
+            satt (*p, id::spela, 1.0f);
+            const auto hela = rendera (*p, 1.5);
+            juce::AudioBuffer<float> u (hela.getNumChannels(), hela.getNumSamples() - (int) (0.15 * sr));
+            for (int c = 0; c < u.getNumChannels(); ++c) u.copyFrom (c, 0, hela, c, (int) (0.15 * sr), u.getNumSamples());
+            return mat (u);
+        };
+        const auto foljer = folj (false), tyst = folj (true);
+        kontroll (foljer.rms > 0.005 && tyst.rms < 0.001,
+                  juce::String::fromUTF8 ("Kolvbas 2 följer Kolvbasen: ") + juce::String (dB (foljer.rms), 1)
+                  + juce::String::fromUTF8 (" dB, med Kolvbasen från MIDI ") + juce::String (dB (tyst.rms), 1) + " dB");
+    }
+    // Allt från MIDI: hela sekvensern tyst, och läget (och kanalernas MIDI-spel) behålls när presets byts.
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Signalfabrik 126");
+        satt (*p, id::midiAlla, 1.0f);
+        satt (*p, id::kanal (3, "midi"), 1.0f);
+        satt (*p, id::spela, 1.0f);
+        p->presets.loadByName ("Kolv 125");
+        const bool behalls = p->state.getRawParameterValue (id::midiAlla)->load() > 0.5f
+                          && p->state.getRawParameterValue (id::kanal (3, "midi"))->load() > 0.5f;
+        const auto hela = rendera (*p, 1.5);
+        juce::AudioBuffer<float> u (hela.getNumChannels(), hela.getNumSamples() - (int) (0.15 * sr));
+        for (int c = 0; c < u.getNumChannels(); ++c) u.copyFrom (c, 0, hela, c, (int) (0.15 * sr), u.getNumSamples());
+        const auto tyst = mat (u);
+        satt (*p, id::midiAlla, 0.0f);
+        p->presets.loadByName ("Signalfabrik 126");
+        const auto igen = mat (rendera (*p, 1.0));
+        kontroll (behalls && tyst.rms < 0.001 && igen.rms > 0.01,
+                  juce::String::fromUTF8 ("Allt från MIDI: behålls vid presetbyte, sekvensern ") + juce::String (dB (tyst.rms), 1)
+                  + juce::String::fromUTF8 (" dB; av igen ") + juce::String (dB (igen.rms), 1) + " dB");
+    }
+}
+
+
+// Grundtonhöjden i en ton (autokorrelation på vänster kanal mellan 'fran' och 'fran + 0,4 s').
+double tonhojd (const juce::AudioBuffer<float>& b, double fran, double minHz = 30.0, double maxHz = 1000.0)
+{
+    const int s0 = (int) (fran * sr), n = (int) (0.4 * sr);
+    const float* x = b.getReadPointer (0);
+    const int minLag = (int) (sr / maxHz), maxLag = (int) (sr / minHz);
+    std::vector<double> r ((size_t) maxLag + 2, 0.0);
+    for (int lag = minLag; lag <= maxLag + 1; ++lag)
+    {
+        double a = 0.0;
+        for (int i = 0; i < n; ++i) a += (double) x[s0 + i] * (double) x[s0 + i + lag];
+        r[(size_t) lag] = a;
+    }
+    // Första toppen över 90 % av den största (undviker oktavfel).
+    double storst = 0.0;
+    for (int lag = minLag + 1; lag <= maxLag; ++lag) storst = std::max (storst, r[(size_t) lag]);
+    for (int lag = minLag + 1; lag <= maxLag; ++lag)
+        if (r[(size_t) lag] > 0.9 * storst && r[(size_t) lag] >= r[(size_t) lag - 1] && r[(size_t) lag] >= r[(size_t) lag + 1])
+        {
+            const double a = r[(size_t) lag - 1], bb = r[(size_t) lag], c = r[(size_t) lag + 1];
+            const double d = 0.5 * (a - c) / (a - 2.0 * bb + c);
+            return sr / ((double) lag + d);
+        }
+    return 0.0;
+}
+
+void testaStamningen()
+{
+    std::cout << "23. Stämningen\n";
+    using namespace km::params;
+    // Tabellerna: liksvävande är exakt, ren ters och kvint från tonikan, 24-TET kvartstoner, Scala med karta.
+    {
+        km::StamningTabell t {};
+        km::raknaTabell (km::Skala::inbyggd (km::StamningTyp::Liksvavande), 33, t);
+        bool lika = true;
+        for (int n = 0; n < 128; ++n) lika = lika && std::abs (t[(size_t) n] - n) < 1.0e-9;
+        km::raknaTabell (km::Skala::inbyggd (km::StamningTyp::Ren), km::tonikaTangent (33, 0), t);
+        const double ters = (t[37] - 33.0) * 100.0, kvint = (t[40] - 33.0) * 100.0, oktav = (t[45] - 33.0) * 100.0;
+        km::StamningTabell q {};
+        km::raknaTabell (km::Skala::inbyggd (km::StamningTyp::Tet24), km::tonikaTangent (33, 0), q);
+        kontroll (lika && std::abs (ters - 386.31) < 0.01 && std::abs (kvint - 701.96) < 0.01 && std::abs (oktav - 1200.0) < 1.0e-9
+                  && std::abs ((q[34] - q[33]) * 100.0 - 50.0) < 1.0e-9,
+                  juce::String::fromUTF8 ("tabeller: liksvävande exakt, ren ters ") + juce::String (ters, 2) + juce::String::fromUTF8 (" cent, kvint ")
+                  + juce::String (kvint, 2) + juce::String::fromUTF8 (" cent, 24-TET 50 cent per tangent"));
+        km::Skala s = km::Skala::tet (12);
+        const bool scl = s.lasScl ("! test.scl\nBohlen-Pierce\n 13\n!\n27/25\n25/21\n9/7\n7/5\n75/49\n5/3\n9/5\n49/25\n15/7\n7/3\n63/25\n25/9\n3/1\n");
+        const bool kbm = s.lasKbm ("! test.kbm\n12\n0\n127\n60\n69\n440.0\n13\n0\n1\nx\n2\n3\n4\n5\n6\n7\n8\n9\n10\n");
+        km::raknaTabell (s, 60, t);
+        kontroll (scl && kbm && s.antal == 13 && std::abs (s.period() - 1901.955) < 0.01 && std::abs (t[69] - 69.0) < 1.0e-9 && std::isnan (t[62]),
+                  juce::String::fromUTF8 ("Scala: 13 toner, period ") + juce::String (s.period(), 2) + juce::String::fromUTF8 (" cent, referensen 440 Hz, tangent x tyst"));
+        km::Skala fel;
+        juce::String varfor;
+        const bool avvisad = ! fel.lasScl ("trasig\n3\n1/0\n", &varfor);
+        kontroll (avvisad && varfor.isNotEmpty(), juce::String::fromUTF8 ("trasig .scl avvisas: ") + varfor);
+    }
+    // Ljudet: Kolvbasen och Hugget spelar E med Rast på C (en kvartston låg); trummorna rörs inte.
+    auto spela = [] (int kanal, int midiKanal, int notnr, int stamning, int tonika)
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Init");
+        satt (*p, id::kanal (kanal, "solo"), 1.0f);
+        satt (*p, id::kanal (kanal, "midi"), 1.0f);
+        satt (*p, id::stamning, (float) stamning);
+        satt (*p, id::stamningTon, (float) tonika);
+        const auto b = rendera (*p, 1.0, ton (midiKanal, notnr, 0.9, 0.05));
+        return tonhojd (b, 0.3);
+    };
+    const double lik = spela (0, 1, 40, 0, 0), rast = spela (0, 1, 40, (int) km::StamningTyp::Rast, 1);
+    const double cent = 1200.0 * std::log2 (rast / lik), forvantad = 440.0 * std::exp2 ((40 - 69) / 12.0);
+    const double avOktav = std::remainder (1200.0 * std::log2 (lik / forvantad), 1200.0);   // suboscillatorn kan ge oktaven under
+    kontroll (std::abs (avOktav) < 5.0 && std::abs (cent + 50.0) < 3.0,
+              juce::String::fromUTF8 ("Kolvbasen E2: liksvävande ") + juce::String (lik, 2) + " Hz, Rast " + juce::String (rast, 2) + " Hz ("
+              + juce::String (cent, 1) + " cent)");
+    const double hLik = spela (3, 3, 64, 0, 0), hRast = spela (3, 3, 64, (int) km::StamningTyp::Rast, 1);
+    const double hCent = 1200.0 * std::log2 (hRast / hLik);
+    kontroll (hLik > 0.0 && std::abs (hCent + 50.0) < 3.0,
+              juce::String::fromUTF8 ("Hugget E4: liksvävande ") + juce::String (hLik, 2) + " Hz, Rast " + juce::String (hRast, 2) + " Hz (" + juce::String (hCent, 1) + " cent)");
+    // Trummorna: samma ljud oavsett stämning.
+    auto trummor = [] (int stamning)
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Kolv 125");
+        satt (*p, id::kanal (2, "solo"), 1.0f);
+        satt (*p, id::stamning, (float) stamning);
+        satt (*p, id::spela, 1.0f);
+        return rendera (*p, 1.0);
+    };
+    const auto t0 = trummor (0), t1 = trummor ((int) km::StamningTyp::Tet19);
+    float skillnad = 0.0f;
+    for (int i = 0; i < t0.getNumSamples(); ++i) skillnad = std::max (skillnad, std::abs (t0.getSample (0, i) - t1.getSample (0, i)));
+    kontroll (skillnad < 1.0e-6f, juce::String::fromUTF8 ("Stampverket oberoende av stämningen (största skillnad ") + juce::String (skillnad, 7) + ")");
+}
+
+
+// Energin vid en frekvens (Goertzel) mellan 'fran' och 'fran + langd' sekunder.
+double energiVid (const juce::AudioBuffer<float>& b, double hz, double fran, double langd)
+{
+    const int s0 = (int) (fran * sr), n = (int) (langd * sr);
+    const double w = 2.0 * juce::MathConstants<double>::pi * hz / sr, c = 2.0 * std::cos (w);
+    double s1 = 0.0, s2 = 0.0;
+    for (int i = 0; i < n; ++i)
+    {
+        const double hann = 0.5 - 0.5 * std::cos (2.0 * juce::MathConstants<double>::pi * i / n);
+        const double s = b.getSample (0, s0 + i) * hann + c * s1 - s2;
+        s2 = s1; s1 = s;
+    }
+    return std::sqrt (s1 * s1 + s2 * s2 - c * s1 * s2) / n;
+}
+
+void testaGjuteriet()
+{
+    std::cout << "24. Gjuteriet\n";
+    using namespace km::params;
+    const int kit = (int) km::Kit::Gjuteriet;
+    auto slag = [kit] (int spar, std::vector<std::pair<juce::String, float>> varden, double sek = 2.0)
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Init");
+        satt (*p, id::kit, (float) kit);
+        for (auto& [pid, v] : varden) satt (*p, pid, v);
+        const int notnr = km::Stampverket::notForSpar (spar);
+        return rendera (*p, sek, [notnr] (juce::MidiBuffer& m, int pos, int) { if (pos == 0) m.addEvent (juce::MidiMessage::noteOn (10, notnr, 1.0f), 0); });
+    };
+    // Rör lågt: lägsta moden på 180 Hz och nästa på 2,756 gånger det (en fri stav), en oktav upp med Stämning +12.
+    const int ror = (int) km::Trumma::TomLag;
+    const auto r0 = slag (ror, {}), r12 = slag (ror, { { id::trumma (ror, "stamning"), 12.0f } });
+    const double vid = energiVid (r0, 180.0, 0.05, 0.4), bredvid = energiVid (r0, 205.0, 0.05, 0.4), mod2 = energiVid (r0, 180.0 * 2.756, 0.05, 0.4);
+    const double upp = energiVid (r12, 360.0, 0.05, 0.4), uppBredvid = energiVid (r12, 410.0, 0.05, 0.4);
+    kontroll (vid > 8.0 * bredvid && mod2 > 4.0 * energiVid (r0, 560.0, 0.05, 0.4) && upp > 8.0 * uppBredvid,
+              juce::String::fromUTF8 ("Rör lågt: moden 180 Hz ") + juce::String (20.0 * std::log10 (vid / bredvid), 1) + juce::String::fromUTF8 (" dB över grannen, andra moden (496 Hz) syns, +12 st ger 360 Hz"));
+    // Klang: längre klang ger längre ring.
+    const int stad = (int) km::Trumma::Metall;
+    auto ring = [&] (float klang)
+    {
+        const auto b = slag (stad, { { id::trumma (stad, "klang"), klang } }, 3.0);
+        return mat (b, (int) (1.0 * sr)).rms;
+    };
+    const double kort = ring (0.0f), lang = ring (1.0f);
+    kontroll (lang > 10.0 * kort, juce::String::fromUTF8 ("Städ: efter en sekund ") + juce::String (dB (kort), 1) + juce::String::fromUTF8 (" dB med kort klang, ")
+                                    + juce::String (dB (lang), 1) + juce::String::fromUTF8 (" dB med lång"));
+    // Kedjan rasslar: många anslag.
+    const auto kedja = slag ((int) km::Trumma::Virvel2, {}, 1.0);
+    int toppar = 0;
+    {
+        const int f = (int) (0.004 * sr);
+        double forra = 0.0;
+        bool uppe = false;
+        for (int s0 = 0; s0 + f < (int) (0.4 * sr); s0 += f)
+        {
+            double e = 0.0;
+            for (int i = 0; i < f; ++i) e = std::max (e, (double) std::abs (kedja.getSample (0, s0 + i)));
+            if (! uppe && e > forra * 1.6 && e > 0.02) { ++toppar; uppe = true; }
+            else if (e < forra) uppe = false;
+            forra = e;
+        }
+    }
+    kontroll (toppar >= 6, juce::String::fromUTF8 ("Kedjan: ") + juce::String (toppar) + juce::String::fromUTF8 (" anslag de första 0,4 s"));
+    // Fjädern och klockan klingar, och alla tolv slutar av sig själva (testas i 2. Varje ljud).
+    const auto fj = slag ((int) km::Trumma::Small, {}, 2.0);
+    kontroll (mat (fj, (int) (0.5 * sr)).rms > 1.0e-3, juce::String::fromUTF8 ("Fjädern klingar efter en halv sekund (") + juce::String (dB (mat (fj, (int) (0.5 * sr)).rms), 1) + " dB)");
 }
 
 } // namespace
+
+// --trummor katalog [kit]: varje trumma i varje kit (eller ett kit, 1–5) för sig, 2,5 s, som WAV.
+int skrivTrummor (const char* katalogNamn, const char* kitArg)
+{
+    const auto katalog = juce::File::getCurrentWorkingDirectory().getChildFile (katalogNamn);
+    katalog.createDirectory();
+    static const char* kitFil[] = { "attaatta", "niononio", "digital", "fabrik", "gjuteriet" };
+    for (int kit = 0; kit < km::antalKit; ++kit)
+    {
+        if (kitArg != nullptr && juce::String (kitArg).getIntValue() != kit + 1) continue;
+        for (int t = 0; t < km::antalSpar; ++t)
+        {
+            auto p = nyProcessor();
+            p->presets.loadByName ("Init");
+            satt (*p, km::params::id::kit, (float) kit);
+            const int notnr = km::Stampverket::notForSpar (t);
+            auto ut = rendera (*p, 2.5, [notnr] (juce::MidiBuffer& m, int pos, int)
+            {
+                if (pos == 0) m.addEvent (juce::MidiMessage::noteOn (10, notnr, 1.0f), 0);
+            });
+            const auto m = mat (ut);
+            std::cout << kitFil[kit] << "\t" << t << "\t" << juce::String::fromUTF8 (km::trumNamnFor ((km::Trumma) t, (km::Kit) kit))
+                      << "\ttopp " << juce::String (m.topp, 3) << "\tRMS " << juce::String (dB (m.rms), 1) << " dB\n";
+            skrivWav (ut, katalog.getChildFile (juce::String (kitFil[kit]) + "_" + juce::String (t + 1).paddedLeft ('0', 2) + ".wav"));
+        }
+    }
+    return 0;
+}
 
 // --state: läget efter preset, parametrar och mönster.
 int skrivLage (int argc, char* argv[])
@@ -1061,6 +1299,42 @@ public:
     }
     double bpm = 120.0, ppq = 0.0;
 };
+
+// Tempot ska stå still även efter lång tid: tio minuter med egen klocka och med DAW-transport.
+void testaLangTakt()
+{
+    for (int medDaw = 0; medDaw < 2; ++medDaw)
+    {
+        auto p = nyProcessor();
+        p->forceraEgenKlocka = medDaw == 0;
+        p->presets.loadByName ("Init");
+        p->banker.kolvbasen.rensa();
+        satt (*p, km::params::id::trumma ((int) km::Trumma::Bastrumma, "klang"), 0.0f);
+        satt (*p, km::params::id::kit, (float) km::Kit::Niononio);
+        satt (*p, km::params::id::tempo, 128.0f);
+        satt (*p, km::params::id::spela, 1.0f);
+        LatsadDaw daw;
+        daw.bpm = 128.0;
+        if (medDaw) p->setPlayHead (&daw);
+        const double sek = 600.0, slagPerSampel = 128.0 / 60.0 / sr;
+        const auto ut = rendera (*p, sek, [&] (juce::MidiBuffer&, int pos, int) { daw.ppq = pos * slagPerSampel; });
+        p->setPlayHead (nullptr);
+        const auto a = ansatser (ut);
+        const double fjardedel = sr * 60.0 / 128.0;
+        int vart = 0, vartSist = 0;
+        for (size_t i = 0; i < a.size(); ++i)
+        {
+            const int d = (int) std::abs (a[i] - (double) i * fjardedel);
+            vart = juce::jmax (vart, d);
+            if ((double) a[i] > (sek - 60.0) * sr) vartSist = juce::jmax (vartSist, d);
+        }
+        const double vantat = sek * 128.0 / 60.0;
+        kontroll (std::abs ((double) a.size() - vantat) <= 2.0 && vart <= 4,
+                  juce::String (medDaw ? "DAW-transport" : "egen klocka") + juce::String::fromUTF8 (", 10 minuter i 128: ") + juce::String ((int) a.size())
+                  + juce::String::fromUTF8 (" slag (väntat ") + juce::String ((int) vantat) + juce::String::fromUTF8 ("), största avvikelse ") + juce::String (vart)
+                  + juce::String::fromUTF8 (" samples, sista minuten ") + juce::String (vartSist));
+    }
+}
 
 // --projekt: spelar en låt enligt spec.json (samma format som gor_reaper_projekt.py skriver).
 int spelaProjekt (const char* specFil, const char* utFil)
@@ -1186,6 +1460,7 @@ int main (int argc, char* argv[])
     if (argc > 3 && juce::String (argv[1]) == "--state") return skrivLage (argc, argv);
     if (argc > 2 && juce::String (argv[1]) == "--parametrar") return skrivParametrar (argv[2]);
     if (argc > 3 && juce::String (argv[1]) == "--projekt") return spelaProjekt (argv[2], argv[3]);
+    if (argc > 2 && juce::String (argv[1]) == "--trummor") return skrivTrummor (argv[2], argc > 3 ? argv[3] : nullptr);
     if (argc > 2 && juce::String (argv[1]) == "--kanaler") return skrivKanaler (argv[2], argc > 3 ? argv[3] : nullptr);
     const juce::File katalog = juce::File::getCurrentWorkingDirectory().getChildFile (argc > 1 ? argv[1] : "renders");
     katalog.createDirectory();
@@ -1212,6 +1487,8 @@ int main (int argc, char* argv[])
     testaDemolatarna (katalog);
     testaLjudbanken();
     testaMidiSpel();
+    testaStamningen();
+    testaGjuteriet();
 
     std::cout << (fel == 0 ? "\nAlla test gick igenom.\n" : "\n" + std::to_string (fel) + " test misslyckades.\n");
     std::cout << "Filerna ligger i " << katalog.getFullPathName() << "\n";

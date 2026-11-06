@@ -123,10 +123,10 @@ Gå till **LÅTEN**. Överst: **LÅTLÄGET** (på/av), **Vid slutet** (*Loopa* e
 | Rad i tabellen | Vad | Ändra |
 | --- | --- | --- |
 | RAD | Radens nummer; orange = raden som spelas | Klicka för att välja raden |
-| TAKTER | Hur många takter raden spelas (1–64) | Dra eller rulla; dubbelklick = 4 |
+| TAKTER | Hur många takter raden spelas (1–64) | Klick = +1, högerklick/Alt-klick = −1, dra eller rulla; dubbelklick = 4 |
 | KOLVB. / KOLVB. 2 / STAMPV. / HUGGET | Mönster och variant, t.ex. *3AB* = mönster 3, A+B | Dra eller rulla = mönster; klick = variant A → B → A+B; högerklick = tyst |
-| SPÄNN. | Spänningen för raden | Dra eller rulla i steg om 5 %; dubbelklick = "–" (rör inte spaken) |
-| TRANSP. | Transponering av Kolvbasen, Kolvbas 2 och Hugget | Dra eller rulla ±24; dubbelklick = 0 |
+| SPÄNN. | Spänningen för raden | Klick = +10 %, högerklick/Alt-klick = −10 % (under 0 blir det "–", rör inte spaken); dra eller rulla i steg om 5 %; dubbelklick = "–" |
+| TRANSP. | Transponering av Kolvbasen, Kolvbas 2 och Hugget | Klick = +1, högerklick/Alt-klick = −1, dra eller rulla (±24); dubbelklick = 0 |
 
 Klicka i rubrikkolumnen (eller rulla där) för att byta sida (1/4 … 4/4).
 
@@ -142,6 +142,8 @@ Klicka i rubrikkolumnen (eller rulla där) för att byta sida (1/4 … 4/4).
 
 Med LÅTLÄGET av styr panelens Mönster och Variant som vanligt – låten finns kvar och kan slås på igen.
 
+> Lyser **ALLT FRÅN MIDI** under räkneverket är sekvensern tyst – släck den för att höra mönstren.
+>
 > **SPOLA** börjar om från takt 1 och nollar räkneverket. **STOPP** följt av **SPELA** börjar också från början – det finns ingen paus.
 
 ### Bra att veta

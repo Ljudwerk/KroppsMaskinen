@@ -27,12 +27,23 @@ inline const char* ljudTypNamn (LjudTyp t) { return t == LjudTyp::Bas ? "Bas" : 
 inline bool arMonsterParameter (const juce::String& id)
 {
     using namespace params;
-    for (auto* g : { id::spela, id::tempo, id::gung, id::grundton, id::varvtal, id::varvLage, id::latLage, id::latSlut,
+    for (auto* g : { id::spela, id::tempo, id::gung, id::grundton, id::varvtal, id::varvLage, id::latLage, id::latSlut, id::stamning, id::stamningTon,
                      id::folj, id::forskjutning, id::transponering })
         if (id == g) return true;
     for (int k = 0; k < antalKanaler; ++k)
         for (auto* v : { "langd", "monster", "variant", "tyst", "solo", "midi" })
             if (id == id::kanal (k, v)) return true;
+    return false;
+}
+
+// Uppkopplingen: spela-knappen och MIDI-spel (per kanal och Allt från MIDI). Hör till hur pluginet
+// används i studion, inte till låten, så presets lämnar dem som de är.
+inline bool arUppkoppling (const juce::String& id)
+{
+    using namespace params;
+    if (id == id::spela || id == id::midiAlla) return true;
+    for (int k = 0; k < antalKanaler; ++k)
+        if (id == id::kanal (k, "midi")) return true;
     return false;
 }
 

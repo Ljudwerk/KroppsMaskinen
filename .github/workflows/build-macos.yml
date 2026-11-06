@@ -32,6 +32,7 @@ jobs:
           ./build/KMSnapshot_artefacts/Release/KMSnapshot --stilprov renders/stilprov_vhs.png
           ./build/KMSnapshot_artefacts/Release/KMSnapshot --panel-parametrar
           ./build/KMSnapshot_artefacts/Release/KMSnapshot --panel-klick
+          ./build/KMSnapshot_artefacts/Release/KMSnapshot --lat-klick
           ./build/KMSnapshot_artefacts/Release/KMSnapshot --panel-tid 1 8
           ./build/KMSnapshot_artefacts/Release/KMSnapshot --panel-tid 2 8
 

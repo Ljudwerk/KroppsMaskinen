@@ -129,7 +129,7 @@ public:
     {
         juce::StringArray ut;
         for (auto& r : reglage) if (auto* p = dynamic_cast<ParamReglage*> (r.get())) ut.addIfNotAlreadyThere (p->paramId());
-        for (auto* id : { params::id::spela, params::id::varvtal, params::id::varvLage })
+        for (auto* id : { params::id::spela, params::id::varvtal, params::id::varvLage, params::id::midiAlla })
             ut.addIfNotAlreadyThere (id);
         ut.addIfNotAlreadyThere (params::id::fx ("kass", "kvalitet"));
         for (int k = 0; k < antalKanaler; ++k)
@@ -231,13 +231,13 @@ private:
             auto aktiv = [this, i]
             {
                 const bool spelar = param (params::id::spela) > 0.5f;
-                return i == 1 ? spelar : (i == 2 ? ! spelar : (i == 3 ? lage.spelaIn : spolaNed));
+                return i == 1 ? spelar : (i == 2 ? stoppNed : (i == 3 ? lage.spelaIn : spolaNed));   // SPOLA och STOPP fjädrar tillbaka
             };
             yta (k, [aktiv, i, ik = ikoner[i]] (juce::Graphics& g, Rectangle<float> r)
             {
                 const bool a = aktiv();
                 const auto kr = r.withTrimmedTop (2.0f).withTrimmedBottom (2.0f);
-                auto y = ritaKnapp (g, kr, a && i != 2);
+                auto y = ritaKnapp (g, kr, a);
                 const auto p = ikon (ik, y.reduced (10.0f, 5.0f));
                 if (a && i != 2)
                 {
@@ -245,7 +245,7 @@ private:
                     g.strokePath (p, juce::PathStrokeType (3.0f));
                     g.setColour (i == 3 ? farg::lysRod : farg::lysRod);
                 }
-                else g.setColour (i == 3 ? farg::tryckRott : farg::silver);
+                else g.setColour (i == 3 ? farg::tryckRott : (a ? farg::vitt : farg::silver));
                 g.fillPath (p);
                 if (a && i != 2) ritaLysdiod (g, { kr.getRight() - 6.0f, kr.getY() + 6.0f }, 1.8f, farg::lysRod,
                                               i == 3 && (juce::Time::getMillisecondCounter() / 400) % 2 ? 0.4f : 1.0f);
@@ -255,7 +255,7 @@ private:
             {
                 if (i == 0) { proc.spola(); lage.markor = 0; spolaNed = true; spolaTid = nu(); }
                 else if (i == 1) satt (params::id::spela, 1.0f);
-                else if (i == 2) satt (params::id::spela, 0.0f);
+                else if (i == 2) { satt (params::id::spela, 0.0f); stoppNed = true; stoppTid = nu(); }
                 else { lage.spelaIn = ! lage.spelaIn; if (lage.spelaIn) lage.markor = lage.sida * 16; }
                 andrat();
             });
@@ -264,6 +264,14 @@ private:
         // Räkneverket: speltid.
         yta ({ 612, 24, 120, 32 }, [this] (juce::Graphics& g, Rectangle<float> r) { ritaSjusegment (g, r, tidText (proc.speltid())); },
              [this] { return (juce::int64) proc.speltid(); });
+
+        // Allt från MIDI: hela sekvensern tyst, alla kanaler spelas av DAW:en. Följer inte med presets.
+        yta ({ 612, 62, 120, 14 }, [this] (juce::Graphics& g, Rectangle<float> r)
+        {
+            prov::diodMedText (g, { r.getX() + 6.0f, r.getCentreY() }, stil::sv ("ALLT FRÅN MIDI"), param (params::id::midiAlla) > 0.5f, farg::lysRod);
+        },
+        [this] { return (juce::int64) (param (params::id::midiAlla) > 0.5f); },
+        [this] (const juce::MouseEvent&) { satt (params::id::midiAlla, param (params::id::midiAlla) > 0.5f ? 0.0f : 1.0f); });
 
         // Bandhastigheten (Kassettens kvalitet): SP / LP / EP.
         yta ({ 742, 21, 36, 38 }, [this] (juce::Graphics& g, Rectangle<float> r)
@@ -470,6 +478,7 @@ private:
         m.addSubMenu ("Presets", presetar);
         m.addItem (1, stil::sv ("Spara preset…"));
         m.addItem (3, stil::sv ("Lås mönstren (presets byter bara ljudet)"), true, proc.presets.lasMonster);
+        m.addItem (4, stil::sv ("Allt från MIDI (sekvensern tyst, presets behåller läget)"), true, param (params::id::midiAlla) > 0.5f);
         m.addSeparator();
         const char* bandNamn[] { "Av", "Lite", "Mycket" };
         for (int i = 0; i < 3; ++i) band.addItem (10 + i, bandNamn[i], true, (int) bandstyrka() == i);
@@ -483,12 +492,44 @@ private:
         {
             if (r == 1) sparaPreset();
             else if (r == 3) { proc.presets.lasMonster = ! proc.presets.lasMonster; vfd->repaint(); }
+            else if (r == 4) satt (params::id::midiAlla, param (params::id::midiAlla) > 0.5f ? 0.0f : 1.0f);
             else if (r == 2) { visaPrestanda = ! visaPrestanda; cpuProcent = -1.0; cpuStart = 0.0; }
             else if (r >= 10 && r < 13) sattBandstyrka ((Bandstyrka) (r - 10));
             else if (r >= 160 && r <= 260) { proc.panelLage.setProperty ("skala", (float) (r - 100) / 100.0f, nullptr); if (skalaAndrad) skalaAndrad ((float) (r - 100) / 100.0f); }
             else if (r >= 1000) proc.presets.load (r - 1000);
         });
     }
+
+    // Scala-filerna: läs in .scl eller .kbm, ta bort kartan.
+    void stamningsMeny()
+    {
+        juce::PopupMenu m;
+        const auto namn = proc.egenStamningNamn();
+        m.addSectionHeader (namn.isEmpty() ? juce::String ("Ingen egen skala inläst") : stil::sv ("Egen skala: ") + namn);
+        m.addItem (1, stil::sv ("Läs in skala (.scl)…"));
+        m.addItem (2, stil::sv ("Läs in tangentkarta (.kbm)…"));
+        m.addItem (3, stil::sv ("Ta bort tangentkartan"), proc.harKarta());
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition(), [this] (int r)
+        {
+            if (r == 3) { proc.taBortKarta(); return; }
+            if (r != 1 && r != 2) return;
+            valjare = std::make_unique<juce::FileChooser> (r == 1 ? stil::sv ("Välj en Scala-skala") : stil::sv ("Välj en tangentkarta"),
+                                                           juce::File::getSpecialLocation (juce::File::userHomeDirectory), r == 1 ? "*.scl" : "*.kbm");
+            valjare->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this] (const juce::FileChooser& fc)
+            {
+                const auto f = fc.getResult();
+                if (! f.existsAsFile()) return;
+                juce::String fel;
+                if (proc.lasStamningsfil (f, fel))
+                {
+                    if (f.hasFileExtension ("scl")) satt (params::id::stamning, (float) (int) StamningTyp::Egen);
+                    visare (stil::sv ("Stämning"), f.getFileNameWithoutExtension());
+                }
+                else juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, stil::sv ("Kunde inte läsa filen"), f.getFileName() + ": " + fel);
+            });
+        });
+    }
+    std::unique_ptr<juce::FileChooser> valjare;
 
     void sparaPreset()
     {
@@ -767,8 +808,12 @@ private:
         {
             const float x = x0 + 4.0f * 176.0f;
             lada (sMixer, { x, y0, 158.0f, 522.0f }, "TAKT OCH MASTER");
-            pa (sMixer, stor (id::grundton, "Grundton", 18.0f), x + 79.0f, y0 + 26.0f);
-            pa (sMixer, stor (id::gung, "Gung", 18.0f), x + 79.0f, y0 + 126.0f);
+            pa (sMixer, ratt (id::grundton, "Grundton"), x + 42.0f, y0 + 24.0f);
+            pa (sMixer, ratt (id::gung, "Gung"), x + 116.0f, y0 + 24.0f);
+            // Stämningen (fas 5): skalan, tonikan och Scala-filerna.
+            pa (sMixer, valj (id::stamning, "Stämning", 132), x + 79.0f, y0 + 104.0f);
+            pa (sMixer, valj (id::stamningTon, "Tonika", 60), x + 42.0f, y0 + 168.0f);
+            pa (sMixer, *handling ("Scala…", [this] { stamningsMeny(); }), x + 116.0f, y0 + 168.0f);
             fader (id::master, "Master", x + 57.0f, y0 + 282.0f, 180.0f, sMixer);
         }
 
@@ -938,10 +983,10 @@ private:
             namn->rita = [this] (juce::Graphics& g, Rectangle<float> r)
             {
                 stil::rubrik (g, trumKort (lage.valdTrumma), r.withHeight (26.0f), 22.0f, farg::vitt, juce::Justification::centredLeft, 2.2f, 2.0f);
-                stil::tryck (g, versaler (stil::sv (trumNamn ((Trumma) lage.valdTrumma))), r.withTrimmedTop (34.0f).withHeight (8.0f), 5.6f,
+                stil::tryck (g, versaler (stil::sv (trumNamnFor ((Trumma) lage.valdTrumma, (Kit) (int) param (params::id::kit), param (params::id::kantslag) > 0.5f))), r.withTrimmedTop (34.0f).withHeight (8.0f), 5.6f,
                              juce::Justification::centredLeft, farg::silver);
             };
-            namn->lage = [this] { return (juce::int64) lage.valdTrumma; };
+            namn->lage = [this] { return (juce::int64) lage.valdTrumma + 16 * (int) param (params::id::kit) + 256 * (param (params::id::kantslag) > 0.5f); };
             auto* np = namn.get();
             addChildComponent (*np);
             ytor.push_back (std::move (namn));
@@ -1285,6 +1330,7 @@ private:
     {
         const double t = nu();
         if (spolaNed && t - spolaTid > 150.0) spolaNed = false;
+        if (stoppNed && t - stoppTid > 150.0) stoppNed = false;
 
         // Nivåer: kanalerna och VU (enkel ballistik).
         for (int k = 0; k < antalKanaler; ++k)
@@ -1425,8 +1471,8 @@ private:
 
     juce::String vfdNamn, vfdVarde;
     double vfdTid = -1e9;
-    bool spolaNed = false;
-    double spolaTid = 0.0;
+    bool spolaNed = false, stoppNed = false;
+    double spolaTid = 0.0, stoppTid = 0.0;
     int monsterStart = 0;
     float monsterStartY = 0.0f;
     bool monsterDrog = false;

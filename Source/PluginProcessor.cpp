@@ -7,7 +7,42 @@ KroppsmaskinenProcessor::KroppsmaskinenProcessor()
       state (*this, nullptr, "Kroppsmaskinen", km::params::createLayout())
 {
     state.state.setProperty ("formatVersion", km::PresetManager::formatVersion, nullptr);
+    state.state.addListener (this);
+    motor.setEgenStamning (&egenStamning);
     presets.loadByName ("Kolv 125");
+}
+
+void KroppsmaskinenProcessor::uppdateraEgenStamning()
+{
+    km::Skala s = km::Skala::tet (12);
+    if (state.state.hasProperty ("scl")) s.lasScl (state.state["scl"].toString());
+    if (state.state.hasProperty ("kbm"))
+    {
+        km::Skala k = s;
+        if (k.lasKbm (state.state["kbm"].toString())) s = k;
+    }
+    egenStamning.satt (s);
+}
+
+bool KroppsmaskinenProcessor::lasStamningsfil (const juce::File& f, juce::String& fel)
+{
+    const auto text = f.loadFileAsString();
+    km::Skala prov = km::Skala::tet (12);
+    if (f.hasFileExtension ("kbm"))
+    {
+        if (! prov.lasKbm (text, &fel)) return false;
+        state.state.setProperty ("kbm", text, nullptr);
+        return true;
+    }
+    if (! prov.lasScl (text, &fel)) return false;
+    state.state.setProperty ("scl", text, nullptr);
+    state.state.setProperty ("sclNamn", f.getFileNameWithoutExtension(), nullptr);
+    return true;
+}
+
+juce::String KroppsmaskinenProcessor::egenStamningNamn() const
+{
+    return state.state.getProperty ("sclNamn", "").toString();
 }
 
 void KroppsmaskinenProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)

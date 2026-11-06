@@ -110,6 +110,12 @@ Varje kanal har en knapp **MIDI-spel** (i KANAL-vyn, gruppen *Kanal*, och **MIDI
 - spelar sekvensern **inte** kanalen (dess mönster tystnar), och
 - spelar MIDI-toner på kanalens MIDI-kanal den **alltid** – även när Reaper spelar.
 
+MIDI-spel gäller **bara den kanalen**. De andra kanalerna fortsätter spela sina mönster när Reaper spelar (ett preset som *Signalfabrik 126* har både trummor, två basar och Hugget). Vill du att Reaper spelar allt: tryck på **ALLT FRÅN MIDI** under räkneverket (eller i MENY), så tystnar sekvensern helt. Lysdioden lyser rött när den är på:
+
+![ALLT FRÅN MIDI under räkneverket](panelen_allt_fran_midi.png)
+
+**Presets ändrar inte MIDI-läget.** Varken *ALLT FRÅN MIDI*, kanalernas MIDI-spel eller SPELA följer med när du byter preset, så du kan bläddra bland ljuden medan Reaper spelar utan att sekvensern startar. En Kolvbas 2 som står på *Följ Kolvbasen* tystnar också när Kolvbasen spelas från MIDI.
+
 | Kanal | MIDI-kanal | Spelas som |
 | --- | --- | --- |
 | Kolvbasen | 1 | Monofon bas |
@@ -126,7 +132,7 @@ Utan MIDI-spel gäller det vanliga: medan sekvensern går transponerar tonerna p
 3. Rita eller spela in en MIDI-region på kanal 1. Kolvbasen är monofon: spela en ton i taget. Korta toner ger den studsande EBM-basen; sextondelar med accent kommer bäst fram med ett kort *Fall* och lite *Accent*.
 4. Anslaget och modhjulet kan styra ljudet: i **MODULATION** finns källorna *Anslag*, *Modhjul* (CC 1) och *Aftertouch* – koppla dem till t.ex. *Kolvbasen filter*.
 
-**Två basar:** sätt även Kolvbas 2 på MIDI-spel och skicka samma toner på kanal 2 (eller slå på *Följ Kolvbasen* – den följer bara sekvensern, inte MIDI). Alternativt två instanser av pluginet.
+**Två basar:** sätt även Kolvbas 2 på MIDI-spel och skicka samma toner på kanal 2 (*Följ Kolvbasen* följer bara sekvensern, inte MIDI, och tystnar när Kolvbasen står på MIDI-spel). Alternativt två instanser av pluginet.
 
 ### B3. Stampverket som trummaskin
 
@@ -197,6 +203,7 @@ Kroppsmaskinen har en stereoutgång. För att mixa kanalerna var för sig i Reap
 | --- | --- |
 | Inget ljud när Reaper spelar | Kanalerna är tysta, låten är på *Stanna* och slut, eller alla kanaler står på MIDI-spel utan MIDI. Kontrollera MIXER. |
 | MIDI-tonerna låter inte, utan basgången flyttas | Kanalen står inte på MIDI-spel, så tonerna transponerar sekvensen. Slå på **MIDI-spel** för kanalen. |
+| Sekvenserna spelar trots MIDI-spel | MIDI-spel är per kanal; de andra kanalerna spelar sina mönster. Tryck på **ALLT FRÅN MIDI** under räkneverket, eller MIDI-spel/Tyst på varje kanal i MIXER. |
 | Trummorna spelar dubbelt | Både Stampverkets mönster och MIDI på kanal 10 spelar. Slå på MIDI-spel för Stampverket. |
 | Trumnoterna låter inte | Noterna ligger på kanal 1. Ändra till kanal 10. |
 | Låten börjar på fel rad | Låten räknas från projektets början; takt 1 = rad 1. Lägg en tyst rad först, eller flytta allt annat. |

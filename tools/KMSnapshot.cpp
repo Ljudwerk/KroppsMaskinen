@@ -1,8 +1,9 @@
 // KMSnapshot – ritar panelen till PNG, så att gränssnittet kan granskas utan DAW.
 //
-//   KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–4] [preset]
+//   KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–4] [preset] [id=värde …]
 //        VHS-panelen; vy 1 KANAL, 2 SEKVENS, 3 MIXER, 4 EFFEKTER, 5 MODULATION, 6 LÅTEN. Skalan är fysisk (2 = Retina).
 //   KMSnapshot --panel-tid [skala] [sekunder]       panelens kostnad per sekund när sekvensern går
+//   KMSnapshot --lat-klick                           klickar i låtvyn (Spänningen, takter, transponering)
 //   KMSnapshot --panel-parametrar                    listar parametrar som inte nås från panelen
 //   KMSnapshot --panel-klick                         klickar på allt i alla vyer (letar krascher och jassert)
 //   KMSnapshot --stilprov fil.png [skala]            (VHS-panelens stilprov, fasta exempelvärden)
@@ -88,12 +89,13 @@ int main (int argc, char* argv[])
         return sparaPNG (detaljer, fil, skala, "Detaljarket");
     }
     // VHS-panelen: KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–4] [preset]
-    const bool tid = lage == "--panel-tid" || lage == "--panel-parametrar" || lage == "--panel-klick";
+    const bool tid = lage == "--panel-tid" || lage == "--panel-parametrar" || lage == "--panel-klick" || lage == "--lat-klick";
     const juce::File fil = juce::File::getCurrentWorkingDirectory().getChildFile (tid ? "x.png" : argv[1]);
     const float skala = argc > 2 ? (float) juce::String (argv[2]).getDoubleValue() : 1.0f;
     const int vy = ! tid && argc > 3 ? juce::jlimit (1, 6, juce::String (argv[3]).getIntValue()) : 1;
     const int kanal = ! tid && argc > 4 ? juce::jlimit (1, 4, juce::String (argv[4]).getIntValue()) : 1;
-    const juce::String preset = ! tid && argc > 5 ? juce::String::fromUTF8 (argv[5]) : juce::String ("Kolv 125");
+    const juce::String preset = ! tid && argc > 5 ? juce::String::fromUTF8 (argv[5])
+                              : (lage == "--lat-klick" ? juce::String::fromUTF8 ("Stålverket 128") : juce::String ("Kolv 125"));
 
     KroppsmaskinenProcessor proc;
     proc.forceraEgenKlocka = true;
@@ -101,6 +103,13 @@ int main (int argc, char* argv[])
     proc.prepareToPlay (48000.0, 512);
     proc.presets.loadByName (preset);
     if (auto* p = proc.state.getParameter (km::params::id::spela)) p->setValueNotifyingHost (1.0f);
+    // Valfria parametrar efter presetet: id=värde (verkligt värde), t.ex. km_midi_alla=1.
+    for (int i = 6; ! tid && i < argc; ++i)
+    {
+        const auto arg = juce::String::fromUTF8 (argv[i]);
+        if (auto* p = proc.state.getParameter (arg.upToFirstOccurrenceOf ("=", false, false)))
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) arg.fromFirstOccurrenceOf ("=", false, false).getDoubleValue()));
+    }
 
     juce::AudioBuffer<float> buf (2, 512);
     juce::MidiBuffer midi;
@@ -112,6 +121,47 @@ int main (int argc, char* argv[])
     auto& panel = e->getPanel();
     panel.valjVy ((km::vhs::Vy) (vy - 1), kanal - 1);
 
+    if (lage == "--lat-klick")
+    {
+        // Låtvyn: klick ökar Spänningen, takter och transponeringen, högerklick minskar, och en
+        // hjulhändelse utan rörelse (styrplattan) ändrar ingenting.
+        panel.valjVy (km::vhs::Vy::Laten, 0);
+        km::vhs::LatVy* vy = nullptr;
+        for (auto* c : panel.getChildren()) if (auto* l = dynamic_cast<km::vhs::LatVy*> (c)) vy = l;
+        if (vy == nullptr || proc.banker.laten.antal() == 0) { std::cout << "ingen låt\n"; return 1; }
+        auto kalla = juce::Desktop::getInstance().getMainMouseSource();
+        const float rh = (float) vy->getHeight() / 8.0f, x = km::vhs::LatVy::etikettB + ((float) vy->getWidth() - km::vhs::LatVy::etikettB - 4.0f) / 32.0f;
+        auto klick = [&] (int radIVy, bool hoger)
+        {
+            const juce::Point<float> p (x, ((float) radIVy + 0.5f) * rh);
+            const auto t = juce::Time::getCurrentTime();
+            const auto m = hoger ? juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier) : juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier);
+            juce::MouseEvent ned (kalla, p, m, 1.0f, 0, 0, 0, 0, vy, vy, t, p, t, 1, false);
+            juce::MouseEvent upp (kalla, p, hoger ? m : juce::ModifierKeys(), 1.0f, 0, 0, 0, 0, vy, vy, t, p, t, 1, false);
+            vy->mouseDown (ned); vy->mouseUp (upp);
+        };
+        auto rad = [&] { return proc.banker.laten.get (0); };
+        auto r0 = rad(); r0.spanning = -1; r0.takter = 4; r0.transponering = 0; proc.banker.laten.set (0, r0);
+        int fel = 0;
+        auto koll = [&] (bool ok, const char* vad) { std::cout << (ok ? "  ok   " : "  FEL  ") << vad << "\n"; fel += ok ? 0 : 1; };
+        klick (6, false); koll (rad().spanning == 0, "Spänningen: klick från – ger 0 %");
+        klick (6, false); klick (6, false); koll (rad().spanning == 20, "Spänningen: två klick till ger 20 %");
+        klick (6, true); koll (rad().spanning == 10, "Spänningen: högerklick ger 10 %");
+        klick (6, true); klick (6, true); koll (rad().spanning == -1, "Spänningen: ned under 0 ger –");
+        klick (7, false); klick (7, false); klick (7, true); koll (rad().transponering == 1, "Transponering: +1 +1 −1");
+        klick (1, false); koll (rad().takter == 5, "Takter: klick ger 5");
+        {
+            r0 = rad(); r0.spanning = 50; proc.banker.laten.set (0, r0);
+            const juce::Point<float> p (x, 6.5f * rh);
+            const auto t = juce::Time::getCurrentTime();
+            juce::MouseEvent e (kalla, p, {}, 1.0f, 0, 0, 0, 0, vy, vy, t, p, t, 0, false);
+            for (int i = 0; i < 5; ++i) vy->mouseWheelMove (e, { 0.0f, 0.0f, false, true, false });
+            koll (rad().spanning == 50, "Hjul utan rörelse ändrar inte Spänningen");
+            vy->mouseWheelMove (e, { 0.0f, 0.2f, false, false, false });
+            koll (rad().spanning == 55, "Hjulet upp ger +5 %");
+        }
+        return fel == 0 ? 0 : 1;
+    }
     if (lage == "--panel-klick")
     {
         // Klickar, drar och rullar på allt i alla vyer och kanaler (utom menyer och sparadialogen),

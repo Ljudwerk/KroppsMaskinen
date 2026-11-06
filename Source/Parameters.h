@@ -41,6 +41,14 @@ namespace id
     inline constexpr auto latLage = "km_lat_spela";
     inline constexpr auto latSlut = "km_lat_slut";
 
+    // Allt från MIDI: hela sekvensern tystnar och alla kanaler spelas av inkommande MIDI.
+    // Följer inte med presets, så att man kan bläddra bland ljuden utan att sekvensern startar.
+    inline constexpr auto midiAlla = "km_midi_alla";
+
+    // Stämningen (fas 5): mikrotonala stämningar för Kolvbasen, Kolvbas 2 och Hugget.
+    inline constexpr auto stamning    = "km_stamning";
+    inline constexpr auto stamningTon = "km_stamning_ton";
+
     // Hugget (ljudet; kanalens gemensamma parametrar heter km_hu_langd osv.)
     inline juce::String hu (const char* vad) { return juce::String ("km_hu_") + vad; }
 
@@ -148,7 +156,7 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     layout.add (std::make_unique<I> (pid (id::transponering), namn ("Kolvbas 2 transponering"), -24, 24, 12, IA().withLabel ("st")));
 
     // --- Stampverket
-    layout.add (std::make_unique<C> (pid (id::kit), "Kit", juce::StringArray { namn ("Åttaåtta"), namn ("Niononio"), "Digital", "Fabrik" }, 0));
+    layout.add (std::make_unique<C> (pid (id::kit), "Kit", juce::StringArray { namn ("Åttaåtta"), namn ("Niononio"), "Digital", "Fabrik", "Gjuteriet" }, 0));
     layout.add (std::make_unique<B> (pid (id::kantslag), namn ("Kantslag i stället för kubjällra"), false));
     static const float klangStandard[] = { 0.45f, 0.4f, 0.5f, 0.5f, 0.2f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f };
     for (int s = 0; s < antalSpar; ++s)
@@ -241,6 +249,10 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     // Fas 4: MIDI-spel per kanal – kanalen spelas av inkommande MIDI i stället för av sekvensern.
     for (int k = 0; k < antalKanaler; ++k)
         layout.add (std::make_unique<juce::AudioParameterBool> (pid (id::kanal (k, "midi")), namn (kanalNamn ((Kanal) k)) + namn (" spelas från MIDI"), false));
+    layout.add (std::make_unique<juce::AudioParameterBool> (pid (id::midiAlla), namn ("Allt från MIDI"), false));
+    // Fas 5: stämningen.
+    layout.add (std::make_unique<C> (pid (id::stamning), namn ("Stämning"), stamningNamn(), 0));
+    layout.add (std::make_unique<C> (pid (id::stamningTon), namn ("Stämningens tonika"), stamningTonNamn(), 0));
     return layout;
 }
 
@@ -255,7 +267,7 @@ public:
         folj = p (id::folj); forskjutning = p (id::forskjutning); transponering = p (id::transponering);
         kit = p (id::kit); kantslag = p (id::kantslag);
         varvtal = p (id::varvtal); varvLage = p (id::varvLage); spanning = p (id::spanning);
-        latLage = p (id::latLage); latSlut = p (id::latSlut);
+        latLage = p (id::latLage); latSlut = p (id::latSlut); midiAlla = p (id::midiAlla); stamning = p (id::stamning); stamningTon = p (id::stamningTon);
         {
             size_t i = 0;
             for (auto* v : { "lage", "ackord", "klang", "attack", "fall", "hall", "slapp", "bredd", "sankning", "oktav" })
@@ -329,7 +341,7 @@ public:
             o.pan = c.pan->load(); o.sandA = c.sandA->load(); o.sandB = c.sandB->load();
             o.tyst = c.tyst->load() > 0.5f;
             o.solo = c.solo->load() > 0.5f;
-            o.midi = c.midi->load() > 0.5f;
+            o.midi = c.midi->load() > 0.5f || midiAlla->load() > 0.5f;
         }
         for (size_t k = 0; k < 2; ++k)
         {
@@ -360,6 +372,8 @@ public:
         m.spanning = spanning->load();
         m.latLage = latLage->load() > 0.5f;
         m.latLoopa = latSlut->load() < 0.5f;
+        m.stamning = (int) stamning->load();
+        m.stamningTon = (int) stamningTon->load();
         varvFaktorNu = varvFaktor ((Varv) (int) varvtal->load());
         varvLageNu = (VarvLage) (int) varvLage->load();
         m.musikalisktVarv = varvLageNu == VarvLage::Musikaliskt ? varvFaktorNu : 1.0;
@@ -389,7 +403,7 @@ public:
 
 private:
     using P = std::atomic<float>*;
-    P spela, tempo, gung, grundton, master, folj, forskjutning, transponering, kit, kantslag, varvtal, varvLage, spanning, latLage, latSlut;
+    P spela, tempo, gung, grundton, master, folj, forskjutning, transponering, kit, kantslag, varvtal, varvLage, spanning, latLage, latSlut, midiAlla, stamning, stamningTon;
     struct KanalP { P langd, monster, variant, drivetLage, drivetMangd, niva, tyst, solo, pan, sandA, sandB, midi; };
     std::array<P, 10> hu {};
     std::array<P, 20> fx {};

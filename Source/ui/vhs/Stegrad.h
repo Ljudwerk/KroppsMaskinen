@@ -225,11 +225,13 @@ public:
     void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
     {
         if (! lage.tonKanal() || lage.foljer()) return;
+        const int hr = hjul.riktning (w);
+        if (hr == 0) return;
         for (int i = 0; i < 16; ++i)
             if (knapp (i).contains (e.position))
             {
                 const int steg = lage.sida * 16 + i;
-                redigering::tonHojd (lage.ton(), steg, lage.ton().get (steg).halvtoner + ((w.deltaY > 0.0f) != w.isReversed ? 1 : -1));
+                redigering::tonHojd (lage.ton(), steg, lage.ton().get (steg).halvtoner + hr);
                 repaint (stegYta (i));
                 lage.meddela();
             }
@@ -267,6 +269,7 @@ private:
     int langd() const { return lage.langdFor (lage.foljer() ? 0 : lage.kanal); }
 
     PanelLage& lage;
+    Hjul hjul;
     std::array<uint32_t, 16> hash {};
     uint32_t sidHash = 0xffffffff;
     int dragSteg = -1, dragStartTon = 0;
