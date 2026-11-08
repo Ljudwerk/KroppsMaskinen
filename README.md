@@ -26,7 +26,7 @@ Det här finns:
 
 ![VHS-panelen, KANAL-vyn med Kolvbasen](docs/panelen_kanal.png)
 
-Fler vyer: `docs/panelen_sekvens.png`, `docs/panelen_stampverket.png`, `docs/panelen_mixer.png`, `docs/panelen_effekter.png` och `docs/panelen_modulation.png`. Det godkända stilprovet ligger kvar i `docs/stilprov_vhs.png` och `docs/stilprov_detaljer.png`.
+Fler vyer: `docs/panelen_sekvens.png`, `docs/panelen_stampverket.png`, `docs/panelen_gjuteriet.png`, `docs/panelen_mixer.png`, `docs/panelen_effekter.png` och `docs/panelen_modulation.png`. Det godkända stilprovet ligger kvar i `docs/stilprov_vhs.png` och `docs/stilprov_detaljer.png`.
 
 ## Spela
 
@@ -192,7 +192,7 @@ cmake -B build -G Xcode \
 | `Kroppsmaskinen_All` | VST3, AU, CLAP och den fristående appen |
 | `Kroppsmaskinen_Standalone` | `Kroppsmaskinen.app` |
 | `KMRender` | Renderingstestet och lyssningsfilerna (se nedan) |
-| `KMSnapshot` | Ritar panelen till PNG: `KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–4] [preset] [id=värde …]` (skala 2 = Retina); efter presetet kan parametrar sättas som `id=värde`, t.ex. `km_midi_alla=1`. `--panel-tid [skala] [sekunder]` mäter panelens kostnad, `--panel-parametrar` kontrollerar att alla parametrar nås, `--panel-klick` klickar på allt, `--lat-klick` kontrollerar klicken i låtvyn. `--skarm katalog` och `--skarm-tid` ritar och mäter bildskärmen för sig; `--stilprov fil.png` och `--stilprov-detaljer fil.png` ritar stilprovet |
+| `KMSnapshot` | Ritar panelen till PNG: `KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–4] [preset] [id=värde …]` (skala 2 = Retina); efter presetet kan parametrar sättas som `id=värde`, t.ex. `km_midi_alla=1`. `--klicktest` är hela klicktestet: varje reglage ska ändra just sin egen parameter (och ingen annan), alla parametrar ska nås från panelen, allt i alla vyer klickas (letar krascher och jassert) och låtvyns klick kontrolleras – OK/FEL och felkod. `--prestanda [skala] [sekunder]` (även `--tid`) mäter panelens kostnad, `--manual [katalog]` ritar manualens bilder i `docs/`. Delarna går också att köra var för sig: `--panel-parametrar`, `--panel-klick`, `--lat-klick`. `--skarm katalog` och `--skarm-tid` ritar och mäter bildskärmen för sig; `--stilprov fil.png` och `--stilprov-detaljer fil.png` ritar stilprovet |
 
 ### Installera i din DAW
 
@@ -207,16 +207,16 @@ cp -R build/Kroppsmaskinen_artefacts/Release/CLAP/Kroppsmaskinen.clap ~/Library/
 
 ```sh
 cmake --build build --config Release --target KMRender
-./build/KMRender_artefacts/Release/KMRender renders
+./build/KMRender_artefacts/Release/KMRender --test renders
 ```
 
-KMRender kontrollerar mönsterformatet (även inläsning av lägen från fas 0), alla 65 ljud för sig (Kolvbasen i båda filtren och med synk, Kolvbas 2, och tolv trummor i fem kit), att Taktverket slår exakt på stegen (även efter tio minuter, med egen klocka och med DAW-transport), att ett nytt mönster tar över på nästa takt, tyst och solo, att Kolvbas 2 som följer låter exakt som Kolvbasen, att Drivet håller nivån, alla fabrikspresets, 40 slumpade ytterlägen, tempot genom JUCE:s AudioProcessorPlayer (samma väg som den fristående appen) i 44,1, 48 och 96 kHz med olika blockstorlekar, Huggets sju lägen, att Grindrummet stänger, att Ekot kommer i takt, att Klämman pumpar, att Varvtalet sänker tempo och tonhöjd lika mycket i båda lägena, att Spänningen håller nivån, att modulationen hörs, att Kassetten är helt av utan slitage men håller nivån med fullt slitage, att låtläget byter mönster och tystnad takt för takt (Loopa och Stanna) att demolåtarna låter rad för rad hela vägen (`renders/demo_*.wav`) och att ljudbanken bara byter klangen, att alla 156 fabriksljud låter rent och att Lås mönstren behåller mönster och tempo, och att en kanal med MIDI-spel tystnar i sekvensern och spelas av MIDI-tonerna medan sekvensern går (och att Kolvbas 2 som följer tystnar med den), och att Allt från MIDI tystar allt och står kvar vid presetbyte, att stämningarna stämmer (tabellerna, Scala-filer med tangentkarta och Kolvbasen och Hugget i Rast) och att Gjuteriets moder hamnar på rätt frekvens, följer Stämning och Klang och att kedjan rasslar. `KMRender --trummor katalog [kit]` skriver varje trumma i varje kit för sig, med nivåerna. `KMRender --kanaler katalog [namn]` spelar varje presets mönster 1–4 för sig och varje kanal solo, med nivåerna utskrivna. Den avslutar med felkod om något går fel, så CI blir rött.
+KMRender kontrollerar mönsterformatet (även inläsning av lägen från fas 0), alla 65 ljud för sig (Kolvbasen i båda filtren och med synk, Kolvbas 2, och tolv trummor i fem kit), att Taktverket slår exakt på stegen (även efter tio minuter, med egen klocka och med DAW-transport), att ett nytt mönster tar över på nästa takt, tyst och solo, att Kolvbas 2 som följer låter exakt som Kolvbasen, att Drivet håller nivån, alla fabrikspresets, 40 slumpade ytterlägen, tempot genom JUCE:s AudioProcessorPlayer (samma väg som den fristående appen) i 44,1, 48 och 96 kHz med olika blockstorlekar, Huggets sju lägen, att Grindrummet stänger, att Ekot kommer i takt, att Klämman pumpar, att Varvtalet sänker tempo och tonhöjd lika mycket i båda lägena, att Spänningen håller nivån, att modulationen hörs, att Kassetten är helt av utan slitage men håller nivån med fullt slitage, att låtläget byter mönster och tystnad takt för takt (Loopa och Stanna) att demolåtarna låter rad för rad hela vägen (`renders/demo_*.wav`) och att ljudbanken bara byter klangen, att alla 156 fabriksljud låter rent och att Lås mönstren behåller mönster och tempo, och att en kanal med MIDI-spel tystnar i sekvensern och spelas av MIDI-tonerna medan sekvensern går (och att Kolvbas 2 som följer tystnar med den), och att Allt från MIDI tystar allt och står kvar vid presetbyte, att stämningarna stämmer (tabellerna, Scala-filer med tangentkarta och Kolvbasen och Hugget i Rast) och att Gjuteriets moder hamnar på rätt frekvens, följer Stämning och Klang och att kedjan rasslar, stämningen i cent i bas, mellanläge och diskant (Kolvbasen och Hugget, ±3 cent), klick (tyst och solo mitt i en ton, röststöld i Hugget, upprepad ton och programbyte medan sekvensern går) och CPU (hela maskinen under 25 % av en kärna). Den skriver antalet kontroller sist (160 i dag). Utan argument visar verktyget sin hjälp. `KMRender --trummor katalog [kit]` skriver varje trumma i varje kit för sig, med nivåerna. `KMRender --kanaler katalog [namn]` spelar varje presets mönster 1–4 för sig och varje kanal solo, med nivåerna utskrivna. Den avslutar med felkod om något går fel, så CI blir rött.
 
 **Grind 0 (godkänd):** `renders/grind0_kolv125.wav` (och `_bas`, `_trummor`).
 
 **Grind 2:** ett helt spår på 3–4 minuter i Reaper, bara med Kroppsmaskinen och utan externa effekter. *Fabriksgolv 125*, *Paroll 132* och *Svart skiva 33* är startpunkter; mönster byts med automation på kanalernas **Mönster** (det nya mönstret tar över på nästa takt). Huggets lägen finns som `renders/hugget_*.wav`.
 
-**Grind 3 (godkänd):** VHS-panelen. Kraven: under CPU-målet (< 3 % av en kärna på en M1 i 100 %), alla parametrar nåbara och grind 2-låten byggbar utan DAW:ens generiska vy. Att mäta på Macen: MENY → *Visa gränssnittets CPU* visar meddelandetrådens processortid (medel över två sekunder) i presetdisplayen, med sekvensern igång. `KMSnapshot --panel-parametrar` ska ge "0 saknas" och `--panel-klick` gå igenom utan fel (båda körs i CI).
+**Grind 3 (godkänd):** VHS-panelen. Kraven: under CPU-målet (< 3 % av en kärna på en M1 i 100 %), alla parametrar nåbara och grind 2-låten byggbar utan DAW:ens generiska vy. Att mäta på Macen: MENY → *Visa gränssnittets CPU* visar meddelandetrådens processortid (medel över två sekunder) i presetdisplayen, med sekvensern igång. `KMSnapshot --klicktest` ska gå igenom (körs i CI).
 
 **Grind 4:** någon som inte har byggt maskinen gör ett spår på en timme med bara fabriksbandet och manualen ovan ([Ett spår på en timme](#ett-spår-på-en-timme)).
 
@@ -272,10 +272,10 @@ Reaper känner igen pluginet på ett tal och ett GUID. Skriptet läser talet ur 
 | `Source/ui/vhs/` | VHS-panelen: `Panel.h` (sektionerna, vyerna, den cachade bakgrunden och timern), `Reglage.h` (ratt, knapp, väljare, spak, sjusegment), `Stegrad.h`, `Sekvens.h`, `Klaviatur.h`, `Bildskarm.h` och `Scener.h` (den animerade skärmen och bandlagret), `LatVy.h` (LÅTEN-vyn), `SkarmData.h` och `PanelLage.h` | Ny |
 | `Source/PluginProcessor.*` | Processorn: parametrar, mönster, presets och Varvtalets skivspelarläge (varispeed) | Ny |
 | `Source/PluginEditor.*` | Editorn: VHS-panelen i vald storlek (60–160 %) | Ny |
-| `tools/KMRender.cpp` | Renderingstest och lyssningsfiler; `--state`, `--parametrar` och `--projekt` för Reaper-skriptet | Ny |
+| `tools/KMRender.cpp` | Renderingstest (`--test`) och lyssningsfiler (`--trummor`, `--kanaler`); `--state`, `--parametrar` och `--projekt` för Reaper-skriptet | Ny |
 | `tools/reaper/gor_reaper_projekt.py` | Bygger testlåten som Reaper-projekt (och JSON för `KMRender --projekt`) | Utgår från KrangBox |
 | `Reaper/` | Testlåtarna: `Fabriksgolv`, `Stalverket` och `Antwerpen` (`.RPP` och `.json`) | Ny |
-| `tools/KMSnapshot.cpp`, `tools/SkarmProv.h` | Ritar panelen, skärmen och stilprovet till PNG; mäter panelen och skärmen; kontrollerar parametrarna och klickar igenom panelen | Ny |
+| `tools/KMSnapshot.cpp`, `tools/SkarmProv.h` | Ritar panelen, skärmen, stilprovet och manualbilderna (`--manual`) till PNG; mäter panelen och skärmen (`--prestanda`); klicktestet (`--klicktest`) | Ny |
 | `.github/workflows/` | macOS-bygge, renderingstest, panelbilder och panelkontroller, pluginval | Utgår från KrangBox |
 
 Parameter-ID:n bytte namn mellan fas 0 och fas 1 (till `km_<kanal>_<vad>`). Från version 1.0 får de aldrig ändras igen.

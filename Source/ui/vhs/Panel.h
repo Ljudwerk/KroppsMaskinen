@@ -125,6 +125,14 @@ public:
     PanelLage& getLage() { return lage; }
 
     // Parametrar som nås från panelen: reglagen och de egna ytorna (transport, varvtal, mönster …).
+    // Klicktestet: varje reglage som styr en parameter, med parameterns ID.
+    std::vector<std::pair<juce::Component*, juce::String>> parameterReglage() const
+    {
+        std::vector<std::pair<juce::Component*, juce::String>> ut;
+        for (auto& r : reglage) if (auto* p = dynamic_cast<ParamReglage*> (r.get())) ut.push_back ({ p, p->paramId() });
+        return ut;
+    }
+
     juce::StringArray nadaParametrar() const
     {
         juce::StringArray ut;

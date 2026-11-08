@@ -2,10 +2,13 @@
 //
 //   KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–4] [preset] [id=värde …]
 //        VHS-panelen; vy 1 KANAL, 2 SEKVENS, 3 MIXER, 4 EFFEKTER, 5 MODULATION, 6 LÅTEN. Skalan är fysisk (2 = Retina).
-//   KMSnapshot --panel-tid [skala] [sekunder]       panelens kostnad per sekund när sekvensern går
-//   KMSnapshot --lat-klick                           klickar i låtvyn (Spänningen, takter, transponering)
-//   KMSnapshot --panel-parametrar                    listar parametrar som inte nås från panelen
-//   KMSnapshot --panel-klick                         klickar på allt i alla vyer (letar krascher och jassert)
+//   KMSnapshot --klicktest                           hela klicktestet: varje reglage ändrar (bara) sin parameter, alla
+//                                                    parametrar nås, allt i alla vyer klickas, och låtvyns klick (OK/FEL)
+//   KMSnapshot --prestanda [skala] [sekunder]        panelens kostnad per sekund när sekvensern går (även --tid, --panel-tid)
+//   KMSnapshot --manual [katalog]                    manualens bilder (docs): varje vy och närbilden av ALLT FRÅN MIDI
+//   KMSnapshot --lat-klick                           bara låtvyns klick (Spänningen, takter, transponering)
+//   KMSnapshot --panel-parametrar                    bara: listar parametrar som inte nås från panelen
+//   KMSnapshot --panel-klick                         bara: klickar på allt i alla vyer (letar krascher och jassert)
 //   KMSnapshot --stilprov fil.png [skala]            (VHS-panelens stilprov, fasta exempelvärden)
 //   KMSnapshot --stilprov-detaljer fil.png [skala]   (närbilder: ratt, stegknapp, display, typsnitt, skärm)
 //
@@ -18,6 +21,7 @@
 #include "ui/stil/Stilprov.h"
 #include "SkarmProv.h"
 #include <map>
+#include <set>
 
 // Skriver en komponent till PNG i given skala.
 static int sparaPNG (juce::Component& c, const juce::File& fil, float skala, const char* vad)
@@ -35,15 +39,65 @@ static int sparaPNG (juce::Component& c, const juce::File& fil, float skala, con
     return 0;
 }
 
+// --manual katalog: manualens bilder (README och docs/) – varje vy och en närbild av ALLT FRÅN MIDI i 200 %.
+// Kör verktyget självt en gång per bild, så att varje bild börjar från ett nytt läge.
+static int manualbilder (const char* katalogNamn, const char* jag)
+{
+    const auto katalog = juce::File::getCurrentWorkingDirectory().getChildFile (katalogNamn);
+    katalog.createDirectory();
+    const juce::String sjalv = juce::File::getCurrentWorkingDirectory().getChildFile (jag).getFullPathName();
+    struct Bild { const char* fil; const char* skala; const char* vy; const char* kanal; const char* preset; const char* extra; };
+    const Bild bilder[] {
+        { "panelen_kanal.png",       "1", "1", "1", "Kolv 125", nullptr },
+        { "panelen_sekvens.png",     "1", "2", "1", "Kolv 125", nullptr },
+        { "panelen_mixer.png",       "1", "3", "1", "Kolv 125", nullptr },
+        { "panelen_effekter.png",    "1", "4", "1", "Kolv 125", nullptr },
+        { "panelen_modulation.png",  "1", "5", "1", "Kolv 125", nullptr },
+        { "panelen_stampverket.png", "1", "1", "3", "Kolv 125", nullptr },
+        { "panelen_laten.png",       "1", "6", "1", "Stålverket 128", nullptr },
+        { "panelen_gjuteriet.png",   "1", "1", "3", "Kolv 125", "km_sv_kit=4" },
+        { "_allt_fran_midi.png",     "2", "3", "1", "Kolv 125", "km_midi_alla=1" },
+    };
+    int fel = 0;
+    for (const auto& b : bilder)
+    {
+        juce::StringArray args { sjalv, katalog.getChildFile (b.fil).getFullPathName(), b.skala, b.vy, b.kanal, juce::String::fromUTF8 (b.preset) };
+        if (b.extra != nullptr) args.add (b.extra);
+        juce::ChildProcess cp;
+        if (! cp.start (args) || ! cp.waitForProcessToFinish (120000) || cp.getExitCode() != 0) { std::cout << "FEL: " << b.fil << "\n"; ++fel; continue; }
+        std::cout << katalog.getChildFile (b.fil).getFileName() << "\n";
+    }
+    // Närbilden: bandverket och räkneverket.
+    const auto tmp = katalog.getChildFile ("_allt_fran_midi.png");
+    const auto bild = juce::ImageFileFormat::loadFrom (tmp);
+    if (bild.isValid())
+    {
+        juce::PNGImageFormat png;
+        juce::FileOutputStream ut (katalog.getChildFile ("panelen_allt_fran_midi.png"));
+        ut.setPosition (0); ut.truncate();
+        png.writeImageToStream (bild.getClippedImage ({ 760, 0, 840, 180 }), ut);
+        std::cout << "panelen_allt_fran_midi.png\n";
+    }
+    else ++fel;
+    tmp.deleteFile();
+    return fel == 0 ? 0 : 1;
+}
+
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI juce;
     if (argc < 2)
     {
-        std::cout << "Användning: KMSnapshot [--stilprov | --stilprov-detaljer] fil.png [skala]\n";
+        std::cout << juce::String::fromUTF8 ("Användning: KMSnapshot fil.png [skala] [vy] [kanal] [preset] [id=värde …]\n"
+                                             "            KMSnapshot --klicktest | --prestanda | --manual [katalog]\n"
+                                             "            KMSnapshot --stilprov | --stilprov-detaljer fil.png [skala]\n");
         return 1;
     }
-    const juce::String lage (argv[1]);
+    juce::String lage (argv[1]);
+    if (lage == "--prestanda" || lage == "--tid") lage = "--panel-tid";   // namnen i styrdokumenten (testa/tester.md)
+    if (lage == "--manual") return manualbilder (argc > 2 ? argv[2] : "docs", argv[0]);
+    const bool klicktest = lage == "--klicktest";
+    int klickFel = 0;
     if (lage == "--skarm" || lage == "--skarm-tid") return skarmProv (argc, argv);
     if (lage == "--tid-stilprov")
     {
@@ -89,13 +143,13 @@ int main (int argc, char* argv[])
         return sparaPNG (detaljer, fil, skala, "Detaljarket");
     }
     // VHS-panelen: KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–4] [preset]
-    const bool tid = lage == "--panel-tid" || lage == "--panel-parametrar" || lage == "--panel-klick" || lage == "--lat-klick";
+    const bool tid = lage == "--panel-tid" || lage == "--panel-parametrar" || lage == "--panel-klick" || lage == "--lat-klick" || klicktest;
     const juce::File fil = juce::File::getCurrentWorkingDirectory().getChildFile (tid ? "x.png" : argv[1]);
     const float skala = argc > 2 ? (float) juce::String (argv[2]).getDoubleValue() : 1.0f;
     const int vy = ! tid && argc > 3 ? juce::jlimit (1, 6, juce::String (argv[3]).getIntValue()) : 1;
     const int kanal = ! tid && argc > 4 ? juce::jlimit (1, 4, juce::String (argv[4]).getIntValue()) : 1;
     const juce::String preset = ! tid && argc > 5 ? juce::String::fromUTF8 (argv[5])
-                              : (lage == "--lat-klick" ? juce::String::fromUTF8 ("Stålverket 128") : juce::String ("Kolv 125"));
+                              : (lage == "--lat-klick" || klicktest ? juce::String::fromUTF8 ("Stålverket 128") : juce::String ("Kolv 125"));
 
     KroppsmaskinenProcessor proc;
     proc.forceraEgenKlocka = true;
@@ -121,8 +175,9 @@ int main (int argc, char* argv[])
     auto& panel = e->getPanel();
     panel.valjVy ((km::vhs::Vy) (vy - 1), kanal - 1);
 
-    if (lage == "--lat-klick")
+    if (lage == "--lat-klick" || klicktest)
     {
+        if (klicktest) std::cout << juce::String::fromUTF8 ("Låtvyn\n");
         // Låtvyn: klick ökar Spänningen, takter och transponeringen, högerklick minskar, och en
         // hjulhändelse utan rörelse (styrplattan) ändrar ingenting.
         panel.valjVy (km::vhs::Vy::Laten, 0);
@@ -160,10 +215,76 @@ int main (int argc, char* argv[])
             vy->mouseWheelMove (e, { 0.0f, 0.2f, false, false, false });
             koll (rad().spanning == 55, "Hjulet upp ger +5 %");
         }
-        return fel == 0 ? 0 : 1;
+        if (! klicktest) return fel == 0 ? 0 : 1;
+        klickFel += fel;
     }
-    if (lage == "--panel-klick")
+    if (klicktest)
     {
+        // Varje reglage: dra upp, annars ned, annars klicka – och kontrollera att just dess parameter ändrades
+        // (och ingen annan). Värdet ställs tillbaka efteråt.
+        std::cout << juce::String::fromUTF8 ("Reglagen\n");
+        auto kalla = juce::Desktop::getInstance().getMainMouseSource();
+        auto alla = [&proc]
+        {
+            std::map<juce::String, float> v;
+            for (auto* p : proc.getParameters()) if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (p)) v[r->getParameterID()] = r->getValue();
+            return v;
+        };
+        auto gest = [&] (juce::Component& c, float dy)
+        {
+            const auto t = juce::Time::getCurrentTime();
+            const juce::Point<float> p (c.getWidth() * 0.5f, c.getHeight() * 0.5f);
+            const auto m = juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier);
+            juce::MouseEvent ned (kalla, p, m, 1.0f, 0, 0, 0, 0, &c, &c, t, p, t, 1, false);
+            juce::MouseEvent drag (kalla, p.translated (0.0f, dy), m, 1.0f, 0, 0, 0, 0, &c, &c, t, p, t, 1, true);
+            juce::MouseEvent upp (kalla, p.translated (0.0f, dy), {}, 1.0f, 0, 0, 0, 0, &c, &c, t, p, t, 1, dy != 0.0f);
+            c.mouseDown (ned);
+            if (dy != 0.0f) c.mouseDrag (drag);
+            c.mouseUp (upp);
+        };
+        std::set<juce::String> provade;
+        int fel = 0;
+        for (int v = 0; v < 6; ++v)
+            for (int k = 0; k < 4 + km::antalSpar; ++k)   // Stampverkets sida en gång per vald trumma
+            {
+                if (k >= 4 && v != 0) continue;
+                panel.valjVy ((km::vhs::Vy) v, std::min (k, 3) == 3 && k >= 4 ? 2 : std::min (k, 3));
+                if (k >= 4) { panel.getLage().valdTrumma = k - 4; panel.valjVy (km::vhs::Vy::Kanal, 2); }
+                for (auto& [c, id] : panel.parameterReglage())
+                {
+                    if (! c->isShowing() && ! c->isVisible()) continue;
+                    if (provade.count (id) > 0) continue;
+                    provade.insert (id);
+                    auto* param = dynamic_cast<juce::RangedAudioParameter*> (proc.state.getParameter (id));
+                    const auto fore = alla();
+                    bool andrad = false;
+                    for (float dy : { -40.0f, 40.0f, 0.0f })
+                    {
+                        gest (*c, dy);
+                        if (std::abs (param->getValue() - fore.at (id)) > 1.0e-6f) { andrad = true; break; }
+                    }
+                    juce::StringArray andra;
+                    for (const auto& [pid, v0] : alla())
+                        if (pid != id && std::abs (v0 - fore.at (pid)) > 1.0e-6f) andra.add (pid);
+                    if (! andrad || ! andra.isEmpty())
+                    {
+                        std::cout << "  FEL  " << id << (andrad ? "" : juce::String::fromUTF8 (" ändrades inte"))
+                                  << (andra.isEmpty() ? juce::String() : juce::String::fromUTF8 (" ändrade också ") + andra.joinIntoString (", ")) << "\n";
+                        ++fel;
+                    }
+                    // Tillbaka till utgångsläget.
+                    for (auto* p : proc.getParameters())
+                        if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (p))
+                            if (std::abs (r->getValue() - fore.at (r->getParameterID())) > 1.0e-6f) r->setValueNotifyingHost (fore.at (r->getParameterID()));
+                }
+            }
+        std::cout << "  " << (fel == 0 ? "ok   " : "FEL  ") << (int) provade.size() << juce::String::fromUTF8 (" reglage, ") << fel
+                  << juce::String::fromUTF8 (" ändrade inte (bara) sin egen parameter\n");
+        klickFel += fel;
+    }
+    if (lage == "--panel-klick" || klicktest)
+    {
+        if (klicktest) std::cout << juce::String::fromUTF8 ("Allt i alla vyer\n");
         // Klickar, drar och rullar på allt i alla vyer och kanaler (utom menyer och sparadialogen),
         // med och utan Skift/Alt, och spelar in med klaviaturen. Fångar krascher och jassert i Debug.
         auto kalla = juce::Desktop::getInstance().getMainMouseSource();
@@ -196,10 +317,10 @@ int main (int argc, char* argv[])
                 panel.tickForTest();
                 midi.clear(); proc.processBlock (buf, midi);
             }
-        std::cout << antal << " klick utan fel\n";
-        return 0;
+        std::cout << (klicktest ? "  ok   " : "") << antal << " klick utan fel\n";
+        if (! klicktest) return 0;
     }
-    if (lage == "--panel-parametrar")
+    if (lage == "--panel-parametrar" || klicktest)
     {
         // Grind 3: alla parametrar ska gå att nå från panelen.
         const auto nada = panel.nadaParametrar();
@@ -207,8 +328,11 @@ int main (int argc, char* argv[])
         for (auto* p : proc.getParameters())
             if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (p))
                 if (! nada.contains (r->getParameterID())) { std::cout << "saknas: " << r->getParameterID() << "\n"; ++saknas; }
-        std::cout << proc.getParameters().size() << " parametrar, " << saknas << " saknas i panelen\n";
-        return saknas == 0 ? 0 : 1;
+        std::cout << (klicktest ? (saknas == 0 ? "  ok   " : "  FEL  ") : "") << proc.getParameters().size() << " parametrar, " << saknas << " saknas i panelen\n";
+        if (! klicktest) return saknas == 0 ? 0 : 1;
+        klickFel += saknas;
+        std::cout << (klickFel == 0 ? juce::String::fromUTF8 ("\nKlicktestet går igenom.\n") : "\n" + juce::String (klickFel) + juce::String::fromUTF8 (" fel i klicktestet.\n"));
+        return klickFel == 0 ? 0 : 1;
     }
     if (tid)
     {

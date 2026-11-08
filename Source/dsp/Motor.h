@@ -235,7 +235,7 @@ public:
             L += gL + eL;
             R += gR + eR;
             svaj.tick (L, R);
-            klam.tick (L, R, stampverket.bastrumma() * mal[2]);
+            klam.tick (L, R, stampverket.bastrumma() * kanalNiva[2]);   // den glidande nivån: tyst och solo knäpper inte i sidokedjan
             kassetten.tick (L, R);
 
             L = dc[0].tick (L * effektiv.master);

@@ -2,7 +2,7 @@
 
 *Modell KM-87. En groovebox för Electronic Body Music och New Beat, byggd som om den kom ur en svart hemelektroniklåda från 1987 och bara gick att se på genom en VHS-skärm.*
 
-**Status:** Fas 0–3 klara och grind 0–3 godkända. Fas 4, fabriksbandet (1.0), är byggd och väntar på grind 4 (inga externa testare än). Fas 5 är påbörjad: mikrotonala stämningar och Gjuteriet (fysiskt modellerad metall) är klara i kod; pads och drön (femte kanalen) är nästa. Se README.md. Stilprovet och loggan godkändes i fas 1 (2 november 2026).
+**Status:** Fas 0–3 klara och grind 0–3 godkända. Fas 4, fabriksbandet (1.0), är byggd och väntar på grind 4 (inga externa testare än). Fas 5 pågår (beslut 3 november 2026): mikrotonala stämningar och Gjuteriet (fysiskt modellerad metall) är klara i kod och ska lyssnas på; pads och drön (femte kanalen) är nästa. `KMRender --test`: 160 kontroller, alla går igenom; `KMSnapshot --klicktest` går igenom.
 
 Instrument-plugin (VST3, AU, CLAP) och fristående app för macOS, på samma stack som KrangBox. Allt ljud är syntetiskt. Allt i gränssnittet är på svenska.
 
@@ -24,7 +24,7 @@ Det som kännetecknar genren och som maskinen måste klara:
 
 KrangBox växte till femton kammare. Det gör inte Kroppsmaskinen. Det här skjuts upp tills 1.0 är klar och grind 4 passerad:
 
-- Vokoder och röstmodul (*Ropet*, se fas 5)
+- Vokoder och röstmodul – finns i Röstverket RV-83, som ligger på rösten bredvid Kroppsmaskinen (beslut 6 november 2026)
 - Pads, drönljud, fysisk modellering, mikrotonala stämningar (påbörjade i fas 5 före grind 4, se nedan)
 - Sampling av egna filer
 - Windows och Linux
@@ -260,14 +260,19 @@ Varje fas slutar med en **grind**: ett lyssnings- eller granskningstest som mås
 
 ### Fas 5 – Efter 1.0
 
-Påbörjad 3 november 2026, före grind 4 (det finns inga externa testare än; grind 4 görs när det finns, och 1.0-ljuden är oförändrade: liksvävande stämning och de fyra första kiten låter som förut). Ordning: stämningarna, metallen i Stampverket, sedan den femte kanalen.
-
-- **Mikrotonala stämningar** – *klar i kod.* En global stämning för Kolvbasen, Kolvbas 2 och Hugget (`Source/dsp/Stamning.h`): elva inbyggda (liksvävande, ren, pytagoreisk, medeltonig, Werckmeister III, Rast, Bayati, Slendro, Pelog, 24-TET, 19-TET) och Egen med Scala-filer (`.scl` och `.kbm`). Tonikan är grundtonen eller en vald ton. Motorn räknar en tabell från tangent till liksvävande tonnummer, så glid, transponering och modulation fungerar som förut; trummorna påverkas inte. Den egna skalans text sparas i läget (egenskaperna `scl`, `kbm`, `sclNamn`). Parametrarna *Stämning* och *Stämningens tonika* ligger sist i listan och räknas som låt (Lås mönstren behåller dem). Reglagen sitter i MIXER-vyns *Takt och master*.
-- **Metall i Stampverket** – *klar i kod.* Ett femte kit, **Gjuteriet**, med fysiskt modellerade kroppar: modala resonatorer (upp till 32 per röst) för stav, rör (med svävande par), plåt (rektangulär, fritt upplagd), oljefatets botten (cirkulärt membran), städ och kyrkklocka, anslagna av en klubba vars längd ger hårdheten och vars plats väger moderna; kedjan är många slumpade anslag med varierande länkar, och fjädern en fördröjning med en allpasskedja (dispersion). Spåren, MIDI-tonerna och reglagen (Stämning, Klang, Nivå) är desamma som i de andra kiten. Kitet heter Gjuteriet för att inte förväxlas med presetet *Smedjan 118*.
+- **Mikrotonala stämningar** för de melodiska kanalerna, med Scala-filer.
+- **Metall i Stampverket:** fysiskt modellerade slagljud.
 - **Pads och drön:** en femte, polyfon kanal med MIDI-kanal 4, egen remsa i MIXER, egen KANAL-sida och egen rad i låtläget.
-- **Ropet:** vokoder med sidokedjeingång och inbyggd talmaskin (formantsyntesen från Automaten i KrangBox) för robotparoller.
 - MIDI ut från Taktverket, så att sekvensrarna kan styra hårdvara.
-- Gemensamt bibliotek med KrangBox om de kopierade filerna börjar glida isär.
+- Gemensamt bibliotek med KrangBox (krang-libs) om de kopierade filerna börjar glida isär.
+
+*Pågår, påbörjad 3 november 2026 före grind 4 (det finns inga externa testare än; grind 4 görs när det finns). 1.0-ljuden är oförändrade: liksvävande stämning och de fyra första kiten låter som förut. Gjort:*
+
+- *Mikrotonala stämningar (3 november 2026). En global stämning för Kolvbasen, Kolvbas 2 och Hugget (`Source/dsp/Stamning.h`): elva inbyggda (liksvävande, ren, pytagoreisk, medeltonig, Werckmeister III, Rast, Bayati, Slendro, Pelog, 24-TET, 19-TET) och Egen med Scala-filer (`.scl` och `.kbm`). Tonikan är grundtonen eller en vald ton. Motorn räknar en tabell från tangent till liksvävande tonnummer, så glid, transponering och modulation fungerar som förut; trummorna påverkas inte. Den egna skalans text sparas i läget (egenskaperna `scl`, `kbm`, `sclNamn`). Parametrarna* Stämning *och* Stämningens tonika *ligger sist och räknas som låt (Lås mönstren behåller dem). Reglagen sitter i MIXER-vyns* Takt och master. *Mätt: liksvävande är exakt (0,00 cent); Kolvbasen och Hugget stämmer inom 0,1 cent i bas, mellanläge och diskant; Rast sänker E en kvartston (−50 cent).*
+- *Metall i Stampverket (3 november 2026). Ett femte kit,* Gjuteriet*, med fysiskt modellerade kroppar: modala resonatorer (upp till 32 per röst) för stav, rör (med svävande par), plåt (rektangulär, fritt upplagd), oljefatets botten (cirkulärt membran), städ och kyrkklocka, anslagna av en klubba vars längd ger hårdheten och vars plats väger moderna; kedjan är många slumpade anslag med varierande länkar, och fjädern en fördröjning med en allpasskedja (dispersion). Spåren, MIDI-tonerna och reglagen (Stämning, Klang, Nivå) är desamma som i de andra kiten. Kitet heter Gjuteriet för att inte förväxlas med presetet* Smedjan 118*. Nivåerna är jämnade mot Fabrik-kitet (RMS per spår inom ungefär 1 dB). Gjuteriet ska lyssnas på (`KMRender --trummor <katalog> 5`).*
+- *STOPP fjädrar ned när man trycker på den, som SPOLA (önskemål 4 november 2026).*
+- *Testverktygen följer Ljudwerks styrdokument (6 november 2026): `KMRender --test`, `KMSnapshot --klicktest`, `--prestanda` och `--manual`; de gamla lägena finns kvar. Nya standardkontroller: stämning i cent i tre lägen, klick (tyst och solo mitt i en ton, röststöld, upprepad ton, programbyte) och CPU. Klicktestet hittade att Klämmans sidokedja följde bastrummans måltal i stället för den glidande nivån, så att tyst och solo kunde knäppa i pumpen; rättat.*
+- *Mätvärden (6 november 2026): `KMRender --test` 160 kontroller, alla går igenom. `KMSnapshot --klicktest`: 212 reglage ändrar var och en bara sin egen parameter, 216 parametrar nås från panelen, 8 244 klick utan fel, låtvyns åtta klick. CPU i molnmaskinen (Xeon): hela maskinen med* Stålverket 128 *4 % av en kärna, med Gjuteriet, Spänningen i topp, slitet band och ren stämning också 4 % (mål under 25 %). Att mäta på M1.*
 
 ## 6. Risker
 
@@ -277,7 +282,7 @@ Påbörjad 3 november 2026, före grind 4 (det finns inga externa testare än; g
 | Basen låter "mjukvara" – för ren, för långsam | Envelopes med sampelupplösning, accentväg tidigt, A/B mot referenser vid varje grind. |
 | VHS-effekten i gränssnittet äter CPU eller tröttar ögonen | Separat skärmlager, 30 fps-tak, cache, Bandstyrka-reglage. |
 | Varvtalet krockar med DAW-tempo | Skivspelarläget bara i den fristående appen eller med tydlig varning; musikaliskt läge i DAW. |
-| Kopierad kod glider isär från KrangBox | Kopielistan ovan; rättningar förs över för hand tills fas 5. |
+| Kopierad kod glider isär från KrangBox | Kopielistan ovan; rättningar förs över för hand (krang-libs, beslut 3 november 2026). |
 | Aliasing i stötar, synk och drive | PolyBLEP-oscillatorer, översampling i Drivet och synken, renderingstest med spektrumkontroll. |
 
 ## 7. Beslut
@@ -287,6 +292,7 @@ Påbörjad 3 november 2026, före grind 4 (det finns inga externa testare än; g
 - **16 stegknappar med sidbyte** (sidorna I–IV, upp till 64 steg). EBM- och New Beat-mönster är nästan alltid en takt sextondelar, så en takt syns i sin helhet utan att bläddra. 16 knappar i fyra grupper om fyra är dessutom 808/909-greppet som genren byggdes på, och knapparna blir tillräckligt stora för att träffa även vid 60 % skala. Fyra sidlampor visar vilken sida som spelas och vilken som redigeras; läget **Följ** låter redigeringssidan hänga med uppspelningen.
 - **Låtläget är en låt med rader** (som 909:ans), inte kedjor per kanal. Demolåtarna styrs av låtläget, inte av automation.
 - **Signering och notarisering skjuts upp** till efter grind 4.
+- **Ropet stryks; vokoder och talmaskin hör till Röstverket RV-83** (beslut 6 november 2026).
 - **Fas 5 börjar före grind 4** (beslut 3 november 2026): det finns inga externa testare än. Pads och drön blir en femte kanal, metallen ett femte kit (Gjuteriet), stämningen global med Scala-filer.
 - **MIDI-läget hör till uppkopplingen, inte till presetet.** ALLT FRÅN MIDI, kanalernas MIDI-spel och SPELA behålls när presets byts (beslut 3 november 2026).
 - **Presets och mönster får ett eget format**, utan hänsyn till KrangBox. Formatet får ett versionsnummer från första bygget, så att senare ändringar kan läsa äldre filer.

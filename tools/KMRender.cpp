@@ -46,6 +46,9 @@
 //   22. MIDI-spel: en kanal som spelas från MIDI tystnar i sekvensern och spelas av MIDI-tonerna medan sekvensern går.
 //   23. Stämningen: tabellerna, Scala-filerna och att Kolvbasen och Hugget hamnar rätt (Rast, en kvartston låg).
 //   24. Gjuteriet: modernas frekvenser, stämning, klang, kedjans anslag och fjädern.
+//   25. Stämning i cent: Kolvbasen och Hugget i bas, mellanläge och diskant (±3 cent).
+//   26. Klick: tyst och solo mitt i en ton, röststöld i Hugget, upprepad ton och programbyte medan sekvensern går.
+//   27. CPU: hela maskinen med allt igång under 25 % av en kärna.
 //
 // Grind 0-loopen hamnar i renders/grind0_kolv125.wav, grind 1-looparna i renders/grind1_*.wav.
 //
@@ -62,9 +65,11 @@ constexpr double sr = 48000.0;
 constexpr int block = 512;
 int fel = 0;
 
+int antalKontroller = 0;
 void kontroll (bool ok, const juce::String& vad)
 {
     std::cout << (ok ? "  ok   " : "  FEL  ") << vad << "\n";
+    ++antalKontroller;
     if (! ok) ++fel;
 }
 
@@ -1064,6 +1069,23 @@ double tonhojd (const juce::AudioBuffer<float>& b, double fran, double minHz = 3
     return 0.0;
 }
 
+// Tonhöjden nära en väntad frekvens: autokorrelationens topp vid flera perioder (omkring 1 500 sampel),
+// så att interpolationsfelet delas på många perioder. Hittar inom ±3 % (±50 cent).
+double tonhojdNara (const juce::AudioBuffer<float>& b, double fran, double vantadHz)
+{
+    const int s0 = (int) (fran * sr), n = (int) (0.4 * sr);
+    const float* x = b.getReadPointer (0);
+    const double L = sr / vantadHz;
+    const int M = std::max (1, (int) std::lround (1500.0 / L));
+    const int lo = (int) std::floor (M * L * 0.97), hi = (int) std::ceil (M * L * 1.03);
+    auto r = [&] (int lag) { double a = 0.0; for (int i = 0; i < n; ++i) a += (double) x[s0 + i] * x[s0 + i + lag]; return a; };
+    int bast = lo; double bastV = -1.0e30;
+    for (int lag = lo; lag <= hi; ++lag) if (const double v = r (lag); v > bastV) { bastV = v; bast = lag; }
+    const double a = r (bast - 1), c = r (bast + 1);
+    const double d = 0.5 * (a - c) / (a - 2.0 * bastV + c);
+    return sr * M / ((double) bast + d);
+}
+
 void testaStamningen()
 {
     std::cout << "23. Stämningen\n";
@@ -1198,6 +1220,161 @@ void testaGjuteriet()
     // Fjädern och klockan klingar, och alla tolv slutar av sig själva (testas i 2. Varje ljud).
     const auto fj = slag ((int) km::Trumma::Small, {}, 2.0);
     kontroll (mat (fj, (int) (0.5 * sr)).rms > 1.0e-3, juce::String::fromUTF8 ("Fjädern klingar efter en halv sekund (") + juce::String (dB (mat (fj, (int) (0.5 * sr)).rms), 1) + " dB)");
+}
+
+
+// Stämning i cent: Kolvbasen (utan sub) och Hugget (Blåsstöt utan svävning och sänkning, inget ackord) i bas, mellanläge och diskant.
+void testaStamningICent()
+{
+    std::cout << juce::String::fromUTF8 ("25. Stämning i cent\n");
+    using namespace km::params;
+    struct Fall { const char* namn; int kanal, midiKanal, notnr; };
+    const Fall fall[] { { "Kolvbasen bas (A1)", 0, 1, 33 }, { "Kolvbasen mellan (A3)", 0, 1, 57 }, { "Kolvbasen diskant (A5)", 0, 1, 81 },
+                        { "Hugget bas (A2)", 3, 3, 45 }, { "Hugget mellan (A4)", 3, 3, 69 }, { "Hugget diskant (A6)", 3, 3, 93 } };
+    for (const auto& f : fall)
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Init");
+        satt (*p, id::kanal (f.kanal, "solo"), 1.0f);
+        satt (*p, id::kanal (f.kanal, "midi"), 1.0f);
+        satt (*p, id::kolv (0, "sub"), 0.0f);
+        satt (*p, id::kolv (0, "cutoff"), 8000.0f);
+        satt (*p, id::hu ("lage"), (float) (int) km::HuggLage::Blas);
+        satt (*p, id::hu ("ackord"), 0.0f);
+        satt (*p, id::hu ("bredd"), 0.0f);
+        satt (*p, id::hu ("hall"), 1.0f);
+        satt (*p, id::hu ("sankning"), 0.0f);   // stötarna sjunker annars avsiktligt i anslaget
+        const auto b = rendera (*p, 1.0, ton (f.midiKanal, f.notnr, 0.9, 0.05));
+        const double vantad = 440.0 * std::exp2 ((f.notnr - 69) / 12.0);
+        const double hz = tonhojdNara (b, 0.3, vantad);
+        const double cent = hz > 0.0 ? 1200.0 * std::log2 (hz / vantad) : 9999.0;
+        kontroll (std::abs (cent) < 3.0, juce::String::fromUTF8 (f.namn) + ": " + juce::String (hz, 2) + " Hz (" + juce::String (cent, 2) + " cent)");
+    }
+}
+
+// Klick: ett hopp från ett sampel till nästa (ett knäpp) jämfört med de största hoppen i signalen strax före.
+// En mjuk övertoning (några millisekunder) ger inga större hopp än signalen själv; ett tvärt avbrott gör det.
+double klickKvot (const juce::AudioBuffer<float>& b, int vid)
+{
+    const float* x = b.getReadPointer (0);
+    auto d2 = [x] (int i) { return std::abs ((double) x[i] - x[i - 1]); };
+    double fore = 1.0e-9, under = 0.0;
+    for (int i = vid - (int) (0.3 * sr); i < vid - (int) (0.01 * sr); ++i) fore = std::max (fore, d2 (i));
+    for (int i = vid - (int) (0.001 * sr); i < vid + (int) (0.004 * sr); ++i) under = std::max (under, d2 (i));
+    return under / fore;
+}
+
+double hoppIDifferens (const juce::AudioBuffer<float>& a, const juce::AudioBuffer<float>& b, int fran, int till)
+{
+    double storst = 0.0;
+    for (int i = fran + 1; i < till; ++i)
+    {
+        const double d0 = (double) a.getSample (0, i - 1) - b.getSample (0, i - 1), d1 = (double) a.getSample (0, i) - b.getSample (0, i);
+        storst = std::max (storst, std::abs (d1 - d0));
+    }
+    return storst;
+}
+
+void testaKlick()
+{
+    std::cout << "26. Klick\n";
+    using namespace km::params;
+    // Tyst och solo medan Kolvbasen håller en mjuk ton (lågt filter): nivån ska glida, inte knäppa.
+    // Solo på Kolvbas 2 tystar Kolvbasen.
+    for (int vad = 0; vad < 2; ++vad)
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Init");
+        satt (*p, id::kanal (0, "midi"), 1.0f);
+        satt (*p, id::kolv (0, "cutoff"), 160.0f);
+        satt (*p, id::kolv (0, "hall"), 1.0f);
+        const int vid = (int) (0.5 * sr);
+        const auto b = rendera (*p, 0.8, [&p, vid, vad] (juce::MidiBuffer& m, int pos, int n)
+        {
+            if (pos == 0) m.addEvent (juce::MidiMessage::noteOn (1, 45, 0.8f), 0);
+            if (vid >= pos && vid < pos + n) satt (*p, vad == 0 ? id::kanal (0, "tyst") : id::kanal (1, "solo"), 1.0f);
+        });
+        const double kvot = klickKvot (b, vid - (vid % block));
+        kontroll (kvot < 2.0, juce::String::fromUTF8 (vad == 0 ? "Kolvbasen tyst mitt i en ton" : "solo på Kolvbas 2 mitt i Kolvbasens ton")
+                              + juce::String::fromUTF8 (": spiken ") + juce::String (kvot, 2) + juce::String::fromUTF8 (" gånger signalens största"));
+    }
+    // Röststöld: nio toner i Hugget (åtta röster) – den nionde tar den äldsta rösten.
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Init");
+        satt (*p, id::kanal (3, "midi"), 1.0f);
+        satt (*p, id::hu ("lage"), (float) (int) km::HuggLage::Synklead);
+        satt (*p, id::hu ("ackord"), 0.0f);
+        const int stold = (int) (0.6 * sr);
+        const auto b = rendera (*p, 1.0, [stold] (juce::MidiBuffer& m, int pos, int n)
+        {
+            for (int i = 0; i < 9; ++i)
+            {
+                const int at = i < 8 ? (int) (0.05 * sr) * (i + 1) : stold;
+                if (at >= pos && at < pos + n) m.addEvent (juce::MidiMessage::noteOn (3, 48 + 3 * i, 0.8f), at - pos);
+            }
+        });
+        const double kvot = klickKvot (b, stold);
+        kontroll (kvot < 2.0, juce::String::fromUTF8 ("Hugget, röststöld: spiken vid stölden ") + juce::String (kvot, 2) + juce::String::fromUTF8 (" gånger signalens största"));
+    }
+    // Upprepad ton i Kolvbasen (samma ton igen innan den klingat ut).
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Init");
+        satt (*p, id::kanal (0, "midi"), 1.0f);
+        satt (*p, id::kolv (0, "sub"), 0.0f);
+        const int igen = (int) (0.6 * sr);
+        const auto b = rendera (*p, 1.0, [igen] (juce::MidiBuffer& m, int pos, int n)
+        {
+            for (int at : { (int) (0.05 * sr), igen })
+                if (at >= pos && at < pos + n) m.addEvent (juce::MidiMessage::noteOn (1, 45, 0.8f), at - pos);
+            for (int at : { igen - 64 })
+                if (at >= pos && at < pos + n) m.addEvent (juce::MidiMessage::noteOff (1, 45), at - pos);
+        });
+        // Anslaget har ett avsiktligt klick: filtret slår upp på ett par sampel (godkänt i grind 1). Den upprepade tonen
+        // får inte hoppa mer än vågformens egna flanker strax efter första anslaget (då filtret är öppet).
+        auto spik = [&b] (int fran, int till) { double m = 0.0; for (int i = fran; i < till; ++i) m = std::max (m, std::abs ((double) b.getSample (0, i) - b.getSample (0, i - 1))); return m; };
+        const int forst = (int) (0.05 * sr);
+        const double kvot = spik (igen - 64 - (int) (0.001 * sr), igen + (int) (0.004 * sr)) / std::max (1.0e-9, spik (forst + 2, forst + (int) (0.1 * sr)));
+        kontroll (kvot < 1.2, juce::String::fromUTF8 ("Kolvbasen, upprepad ton: största hoppet ") + juce::String (kvot, 2) + juce::String::fromUTF8 (" gånger vågformens egna flanker"));
+    }
+    // Programbyte medan sekvensern går.
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Kolv 125");
+        satt (*p, id::spela, 1.0f);
+        const int byte = (int) (0.75 * sr);
+        const auto b = rendera (*p, 1.2, [&p, byte] (juce::MidiBuffer&, int pos, int n)
+        {
+            if (byte >= pos && byte < pos + n) p->presets.loadByName (juce::String::fromUTF8 ("Syrabad 108"));
+        });
+        const double kvot = klickKvot (b, byte - (byte % block));
+        kontroll (kvot < 2.0, juce::String::fromUTF8 ("programbyte medan sekvensern går: spiken ") + juce::String (kvot, 2) + juce::String::fromUTF8 (" gånger signalens största"));
+    }
+}
+
+// CPU: hela maskinen med allt igång, som andel av en kärna i realtid.
+void testaCpu()
+{
+    std::cout << "27. CPU\n";
+    using namespace km::params;
+    auto mat = [] (const juce::String& preset, std::vector<std::pair<juce::String, float>> varden)
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName (preset);
+        for (auto& [pid, v] : varden) satt (*p, pid, v);
+        satt (*p, id::spela, 1.0f);
+        rendera (*p, 1.0);   // uppvärmning
+        const double sek = 10.0;
+        const auto t0 = juce::Time::getMillisecondCounterHiRes();
+        rendera (*p, sek);
+        return (juce::Time::getMillisecondCounterHiRes() - t0) / 1000.0 / sek * 100.0;
+    };
+    const double demo = mat (juce::String::fromUTF8 ("Stålverket 128"), {});
+    const double tyngst = mat (juce::String::fromUTF8 ("Stålverket 128"), { { id::kit, (float) (int) km::Kit::Gjuteriet }, { id::spanning, 1.0f },
+                                                                              { id::fx ("kass", "slitage"), 1.0f }, { id::stamning, (float) (int) km::StamningTyp::Ren } });
+    kontroll (demo < 25.0 && tyngst < 25.0, juce::String::fromUTF8 ("Stålverket 128: ") + juce::String (demo, 1) + juce::String::fromUTF8 (" % av en kärna; med Gjuteriet, Spänningen i topp, slitet band och ren stämning: ")
+                                             + juce::String (tyngst, 1) + juce::String::fromUTF8 (" % (mål under 25 %)"));
 }
 
 } // namespace
@@ -1462,7 +1639,21 @@ int main (int argc, char* argv[])
     if (argc > 3 && juce::String (argv[1]) == "--projekt") return spelaProjekt (argv[2], argv[3]);
     if (argc > 2 && juce::String (argv[1]) == "--trummor") return skrivTrummor (argv[2], argc > 3 ? argv[3] : nullptr);
     if (argc > 2 && juce::String (argv[1]) == "--kanaler") return skrivKanaler (argv[2], argc > 3 ? argv[3] : nullptr);
-    const juce::File katalog = juce::File::getCurrentWorkingDirectory().getChildFile (argc > 1 ? argv[1] : "renders");
+    if (argc < 2 || juce::String (argv[1]) == "--hjalp" || juce::String (argv[1]) == "--help")
+    {
+        std::cout << juce::String::fromUTF8 (
+            "KMRender – Kroppsmaskinens renderingstest och lyssningsfiler\n\n"
+            "  KMRender --test [katalog]                     alla kontroller; lyssningsfilerna till katalog (renders)\n"
+            "  KMRender <katalog>                            samma sak (äldre form)\n"
+            "  KMRender --trummor <katalog> [kit 1–5]         varje trumma i varje kit som WAV, med nivåer\n"
+            "  KMRender --kanaler <katalog> [preset]          varje presets mönster och kanaler för sig\n"
+            "  KMRender --parametrar <fil>                   parametrarnas ordning (för Reaper-skripten)\n"
+            "  KMRender --state <preset> <fil.xml> [id=värde]  läget som XML\n"
+            "  KMRender --projekt <spec.json> <mix.wav>       spelar en låt i en låtsad DAW\n");
+        return 0;
+    }
+    const bool test = juce::String (argv[1]) == "--test";
+    const juce::File katalog = juce::File::getCurrentWorkingDirectory().getChildFile (test ? (argc > 2 ? argv[2] : "renders") : argv[1]);
     katalog.createDirectory();
 
     testaMonster();
@@ -1489,8 +1680,12 @@ int main (int argc, char* argv[])
     testaMidiSpel();
     testaStamningen();
     testaGjuteriet();
+    testaStamningICent();
+    testaKlick();
+    testaCpu();
 
-    std::cout << (fel == 0 ? "\nAlla test gick igenom.\n" : "\n" + std::to_string (fel) + " test misslyckades.\n");
+    std::cout << "\n" << antalKontroller << " kontroller, ";
+    std::cout << (fel == 0 ? juce::String::fromUTF8 ("alla går igenom.\n") : juce::String (fel) + juce::String::fromUTF8 (" går inte igenom.\n"));
     std::cout << "Filerna ligger i " << katalog.getFullPathName() << "\n";
     return fel == 0 ? 0 : 1;
 }
