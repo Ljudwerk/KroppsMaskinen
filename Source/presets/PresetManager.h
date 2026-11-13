@@ -57,6 +57,7 @@ public:
                 if (! banker.kolvbasen.get (nr, v).arTomt()) lagg ("kb", nr, v, banker.kolvbasen.get (nr, v).toString());
                 if (! banker.kolvbas2.get (nr, v).arTomt())  lagg ("kb2", nr, v, banker.kolvbas2.get (nr, v).toString());
                 if (! banker.hugget.get (nr, v).arTomt())    lagg ("hu", nr, v, banker.hugget.get (nr, v).toString());
+                if (! banker.dimman.get (nr, v).arTomt())    lagg ("di", nr, v, banker.dimman.get (nr, v).toString());
             }
         tree.appendChild (m, nullptr);
 
@@ -81,6 +82,7 @@ public:
             banker.kolvbasen.rensa();
             banker.kolvbas2.rensa();
             banker.hugget.rensa();
+            banker.dimman.rensa();
             if (version == 1)
             {
                 // Fas 0: ett trummönster och en basgång blir mönster 1A.
@@ -97,6 +99,7 @@ public:
                     else if (kanal == "kb")  banker.kolvbasen.get (nr, v).fromString (e["text"].toString());
                     else if (kanal == "kb2") banker.kolvbas2.get (nr, v).fromString (e["text"].toString());
                     else if (kanal == "hu")  banker.hugget.get (nr, v).fromString (e["text"].toString());
+                    else if (kanal == "di")  banker.dimman.get (nr, v).fromString (e["text"].toString());
                 }
             }
             tree.removeChild (m, nullptr);
@@ -222,6 +225,7 @@ private:
         banker.kolvbasen.rensa();
         banker.kolvbas2.rensa();
         banker.hugget.rensa();
+        banker.dimman.rensa();
         for (const auto& t : preset.trummor)
         {
             auto& monster = banker.trummor.get (t.monster, t.variant);

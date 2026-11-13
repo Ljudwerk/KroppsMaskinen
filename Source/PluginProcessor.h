@@ -24,7 +24,7 @@ public:
 
     const juce::String getName() const override { return "Kroppsmaskinen"; }
     bool acceptsMidi() const override  { return true; }
-    bool producesMidi() const override { return false; }
+    bool producesMidi() const override { return true; }    // MIDI ut (fas 5)
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 1.0; }
 

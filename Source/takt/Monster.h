@@ -253,8 +253,11 @@ private:
 // ---------------------------------------------------------------------------------------------
 // Mönsterbanker: 16 mönster per kanal, vart och ett med variant A och B.
 
-enum class Kanal { Kolvbasen = 0, Kolvbas2, Stampverket, Hugget };
-inline constexpr int antalKanaler = 4;
+enum class Kanal { Kolvbasen = 0, Kolvbas2, Stampverket, Hugget, Dimman };
+inline constexpr int antalKanaler = 5;
+// Kanalerna i 1.0. Deras parametrar ligger först i listan; Dimmans (fas 5) ligger sist, så att äldre
+// parameterindex (automation) står kvar.
+inline constexpr int antalKanaler10 = 4;
 inline constexpr int antalMonster = 16;
 
 enum class Variant { A = 0, B, AB };   // AB: A och B växlar varannat varv
@@ -286,6 +289,7 @@ inline const char* kanalNamn (Kanal k)
         case Kanal::Kolvbas2:    return "Kolvbas 2";
         case Kanal::Stampverket: return "Stampverket";
         case Kanal::Hugget:      return "Hugget";
+        case Kanal::Dimman:      return "Dimman";
     }
     return "";
 }

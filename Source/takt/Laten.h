@@ -100,7 +100,7 @@ public:
     // t.ex. "4 kb=1A kb2=2B sv=3AB hu=1A tyst=kb2,hu sp=50 tr=+5". Utelämnade kanaler spelar mönster 1A.
     juce::String toString() const
     {
-        static const char* namn[antalKanaler] { "kb", "kb2", "sv", "hu" };
+        static const char* namn[antalKanaler] { "kb", "kb2", "sv", "hu", "di" };
         juce::StringArray ut;
         for (int i = 0; i < antal(); ++i)
         {
@@ -162,14 +162,16 @@ private:
         if (s == "kb2") return 1;
         if (s == "sv") return 2;
         if (s == "hu") return 3;
+        if (s == "di") return 4;
         return -1;
     }
 
-    // Bitar: mönster 4×4, variant 4×2, tyst 4×1, takter−1 6, Spänningen 7 (127 = rör inte), transponering+24 6.
+    // Bitar: mönster 4×4, variant 4×2, tyst 4×1, takter−1 6, Spänningen 7 (127 = rör inte), transponering+24 6,
+    // och Dimman (fas 5) sist: mönster 4, variant 2, tyst 1 (bit 47–53).
     static uint64_t pack (const LatRad& r)
     {
         uint64_t v = 0;
-        for (int k = 0; k < antalKanaler; ++k)
+        for (int k = 0; k < antalKanaler10; ++k)
         {
             v |= (uint64_t) (juce::jlimit (0, 15, r.monster[(size_t) k])) << (4 * k);
             v |= (uint64_t) (juce::jlimit (0, 2, r.variant[(size_t) k])) << (16 + 2 * k);
@@ -178,12 +180,16 @@ private:
         v |= (uint64_t) (juce::jlimit (1, 64, r.takter) - 1) << 28;
         v |= (uint64_t) (r.spanning < 0 ? 127 : juce::jlimit (0, 100, r.spanning)) << 34;
         v |= (uint64_t) (juce::jlimit (-24, 24, r.transponering) + 24) << 41;
+        const auto d = (size_t) Kanal::Dimman;
+        v |= (uint64_t) (juce::jlimit (0, 15, r.monster[d])) << 47;
+        v |= (uint64_t) (juce::jlimit (0, 2, r.variant[d])) << 51;
+        v |= (uint64_t) (r.tyst[d] ? 1 : 0) << 53;
         return v;
     }
     static LatRad unpack (uint64_t v)
     {
         LatRad r;
-        for (int k = 0; k < antalKanaler; ++k)
+        for (int k = 0; k < antalKanaler10; ++k)
         {
             r.monster[(size_t) k] = (int) ((v >> (4 * k)) & 15);
             r.variant[(size_t) k] = (int) ((v >> (16 + 2 * k)) & 3);
@@ -193,6 +199,10 @@ private:
         const int sp = (int) ((v >> 34) & 127);
         r.spanning = sp == 127 ? -1 : sp;
         r.transponering = (int) ((v >> 41) & 63) - 24;
+        const auto d = (size_t) Kanal::Dimman;
+        r.monster[d] = (int) ((v >> 47) & 15);
+        r.variant[d] = (int) ((v >> 51) & 3);
+        r.tyst[d] = ((v >> 53) & 1) != 0;
         return r;
     }
 

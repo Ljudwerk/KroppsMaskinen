@@ -45,6 +45,9 @@ namespace id
     // Följer inte med presets, så att man kan bläddra bland ljuden utan att sekvensern startar.
     inline constexpr auto midiAlla = "km_midi_alla";
 
+    // MIDI ut (fas 5): sekvensernas toner till en DAW eller hårdvara. Hör till uppkopplingen, som MIDI-spel.
+    inline constexpr auto midiUt = "km_midi_ut";
+
     // Stämningen (fas 5): mikrotonala stämningar för Kolvbasen, Kolvbas 2 och Hugget.
     inline constexpr auto stamning    = "km_stamning";
     inline constexpr auto stamningTon = "km_stamning_ton";
@@ -62,7 +65,7 @@ namespace id
 
     inline const char* kanalPrefix (int kanal)
     {
-        static const char* p[] = { "km_kb_", "km_kb2_", "km_sv_", "km_hu_" };
+        static const char* p[] = { "km_kb_", "km_kb2_", "km_sv_", "km_hu_", "km_di_" };
         return p[juce::jlimit (0, antalKanaler - 1, kanal)];
     }
 
@@ -79,6 +82,8 @@ namespace id
                                       "cymbal", "tomlag", "tomhog", "metall", "small", "kubjallra" };
         return namn[juce::jlimit (0, antalSpar - 1, spar)];
     }
+    // Dimmans ljud: km_di_<vad>.
+    inline juce::String di (const char* vad) { return juce::String ("km_di_") + vad; }
     inline juce::String trumma (int spar, const char* vad) { return juce::String ("km_sv_") + sparId (spar) + "_" + vad; }
 }
 
@@ -106,8 +111,8 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         IA().withStringFromValueFunction ([] (int v, int) { return juce::MidiMessage::getMidiNoteName (v, true, true, 4); })));
     layout.add (std::make_unique<F> (pid (id::master), namn ("Master"), R (0.0f, 1.0f), 0.65f));
 
-    // --- Kanalerna
-    for (int k = 0; k < antalKanaler; ++k)
+    // --- Kanalerna (de fyra från 1.0; Dimman läggs till sist)
+    auto kanalParametrar = [&] (int k)
     {
         const auto rubrik = namn (kanalNamn ((Kanal) k)) + " ";
         layout.add (std::make_unique<I> (pid (id::kanal (k, "langd")), rubrik + namn ("längd"), 1, maxSteg, 16, IA().withLabel ("steg")));
@@ -123,7 +128,8 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         layout.add (std::make_unique<F> (pid (id::kanal (k, "sandB")), rubrik + "till Ekot", R (0.0f, 1.0f), 0.0f));
         layout.add (std::make_unique<B> (pid (id::kanal (k, "tyst")), rubrik + "tyst", false));
         layout.add (std::make_unique<B> (pid (id::kanal (k, "solo")), rubrik + "solo", false));
-    }
+    };
+    for (int k = 0; k < antalKanaler10; ++k) kanalParametrar (k);
 
     // --- Kolvbasen och Kolvbas 2
     for (int k = 0; k < 2; ++k)
@@ -247,12 +253,33 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     layout.add (std::make_unique<juce::AudioParameterBool> (pid (id::latLage), namn ("Låtläget"), false));
     layout.add (std::make_unique<C> (pid (id::latSlut), namn ("Låtens slut"), juce::StringArray { "Loopa", "Stanna" }, 0));
     // Fas 4: MIDI-spel per kanal – kanalen spelas av inkommande MIDI i stället för av sekvensern.
-    for (int k = 0; k < antalKanaler; ++k)
+    for (int k = 0; k < antalKanaler10; ++k)
         layout.add (std::make_unique<juce::AudioParameterBool> (pid (id::kanal (k, "midi")), namn (kanalNamn ((Kanal) k)) + namn (" spelas från MIDI"), false));
     layout.add (std::make_unique<juce::AudioParameterBool> (pid (id::midiAlla), namn ("Allt från MIDI"), false));
     // Fas 5: stämningen.
     layout.add (std::make_unique<C> (pid (id::stamning), namn ("Stämning"), stamningNamn(), 0));
     layout.add (std::make_unique<C> (pid (id::stamningTon), namn ("Stämningens tonika"), stamningTonNamn(), 0));
+    // Fas 5: Dimman – kanalens gemensamma parametrar, MIDI-spel och ljudet.
+    {
+        const int k = (int) Kanal::Dimman;
+        kanalParametrar (k);
+        layout.add (std::make_unique<B> (pid (id::kanal (k, "midi")), namn ("Dimman spelas från MIDI"), false));
+        layout.add (std::make_unique<C> (pid (id::di ("lage")), namn ("Dimman läge"), juce::StringArray { "Syntmatta", namn ("Kör"), namn ("Drönmaskin") }, 0));
+        layout.add (std::make_unique<C> (pid (id::di ("ackord")), "Dimman ackord",
+            juce::StringArray { "Ingen", "Moll", "Dur", "Kvint", "Oktav", "Moll 7", "Sus 4", "Moll 9" }, 0));
+        layout.add (std::make_unique<I> (pid (id::di ("oktav")), "Dimman oktav", -2, 1, 0));
+        layout.add (std::make_unique<F> (pid (id::di ("attack")), "Dimman attack", skew (0.005f, 8.0f, 0.6f), 0.4f, A().withLabel ("s")));
+        layout.add (std::make_unique<F> (pid (id::di ("slapp")), namn ("Dimman släpp"), skew (0.05f, 12.0f, 1.5f), 1.2f, A().withLabel ("s")));
+        layout.add (std::make_unique<F> (pid (id::di ("klang")), "Dimman klang", R (0.0f, 1.0f), 0.5f));
+        layout.add (std::make_unique<F> (pid (id::di ("rorelse")), namn ("Dimman rörelse"), R (0.0f, 1.0f), 0.4f));
+        layout.add (std::make_unique<F> (pid (id::di ("bredd")), "Dimman bredd", R (0.0f, 1.0f), 0.5f));
+        layout.add (std::make_unique<F> (pid (id::di ("vokal")), "Dimman vokal", R (0.0f, 1.0f), 0.0f,
+            A().withStringFromValueFunction ([] (float v, int) { return v < 0.25f ? juce::String ("A") : (v < 0.75f ? juce::String ("O") : juce::String ("I")); })));
+        layout.add (std::make_unique<F> (pid (id::di ("ensemble")), "Dimman ensemble", R (0.0f, 1.0f), 0.4f));
+        layout.add (std::make_unique<C> (pid (id::di ("dron")), namn ("Dimman drönläge"), juce::StringArray { "Av", "Grundton", "Ackord" }, 0));
+    }
+    // Fas 5: MIDI ut från Taktverket.
+    layout.add (std::make_unique<C> (pid (id::midiUt), "MIDI ut", juce::StringArray { "Av", "Med ljudet", "Bara MIDI" }, 0));
     return layout;
 }
 
@@ -267,11 +294,16 @@ public:
         folj = p (id::folj); forskjutning = p (id::forskjutning); transponering = p (id::transponering);
         kit = p (id::kit); kantslag = p (id::kantslag);
         varvtal = p (id::varvtal); varvLage = p (id::varvLage); spanning = p (id::spanning);
-        latLage = p (id::latLage); latSlut = p (id::latSlut); midiAlla = p (id::midiAlla); stamning = p (id::stamning); stamningTon = p (id::stamningTon);
+        latLage = p (id::latLage); latSlut = p (id::latSlut); midiAlla = p (id::midiAlla); midiUt = p (id::midiUt); stamning = p (id::stamning); stamningTon = p (id::stamningTon);
         {
             size_t i = 0;
             for (auto* v : { "lage", "ackord", "klang", "attack", "fall", "hall", "slapp", "bredd", "sankning", "oktav" })
                 hu[i++] = p (id::hu (v));
+        }
+        {
+            size_t i = 0;
+            for (auto* v : { "lage", "ackord", "oktav", "attack", "slapp", "klang", "rorelse", "bredd", "vokal", "ensemble", "dron" })
+                di[i++] = p (id::di (v));
         }
         size_t fi = 0;
         for (auto [e, v] : std::initializer_list<std::pair<const char*, const char*>> {
@@ -360,6 +392,13 @@ public:
         m.hugget.klang = v (2); m.hugget.attack = v (3); m.hugget.fall = v (4);
         m.hugget.hall = v (5); m.hugget.slapp = v (6); m.hugget.bredd = v (7); m.hugget.sankning = v (8);
         m.huggOktav = (int) v (9);
+        auto d = [this] (size_t i) { return di[i]->load(); };
+        m.dimman.lage = (DimmaLage) (int) d (0);
+        m.dimman.ackord = (int) d (1);
+        m.dimman.oktav = (int) d (2);
+        m.dimman.attack = d (3); m.dimman.slapp = d (4); m.dimman.klang = d (5); m.dimman.rorelse = d (6);
+        m.dimman.bredd = d (7); m.dimman.vokal = d (8); m.dimman.ensemble = d (9);
+        m.dimman.dron = (DronLage) (int) d (10);
 
         auto f = [this] (size_t i) { return fx[i]->load(); };
         m.grindrum = { f (0), f (1), f (2), f (3) };
@@ -373,6 +412,7 @@ public:
         m.latLage = latLage->load() > 0.5f;
         m.latLoopa = latSlut->load() < 0.5f;
         m.stamning = (int) stamning->load();
+        m.midiUt = (int) midiUt->load();
         m.stamningTon = (int) stamningTon->load();
         varvFaktorNu = varvFaktor ((Varv) (int) varvtal->load());
         varvLageNu = (VarvLage) (int) varvLage->load();
@@ -403,9 +443,10 @@ public:
 
 private:
     using P = std::atomic<float>*;
-    P spela, tempo, gung, grundton, master, folj, forskjutning, transponering, kit, kantslag, varvtal, varvLage, spanning, latLage, latSlut, midiAlla, stamning, stamningTon;
+    P spela, tempo, gung, grundton, master, folj, forskjutning, transponering, kit, kantslag, varvtal, varvLage, spanning, latLage, latSlut, midiAlla, midiUt, stamning, stamningTon;
     struct KanalP { P langd, monster, variant, drivetLage, drivetMangd, niva, tyst, solo, pan, sandA, sandB, midi; };
     std::array<P, 10> hu {};
+    std::array<P, 11> di {};
     std::array<P, 20> fx {};
     struct LfoP { P form, hz, synk; };
     struct EnvP { P attack, fall, hall, slapp, utlosare; };

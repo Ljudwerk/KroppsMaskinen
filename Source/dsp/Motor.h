@@ -25,6 +25,7 @@
 #include "Stamning.h"
 #include "Stampverket.h"
 #include "Hugget.h"
+#include "Dimman.h"
 #include "Drivet.h"
 #include "Effekter.h"
 #include "Modulation.h"
@@ -60,6 +61,7 @@ struct MotorParams
     std::array<KolvbasParams, 2> kolvbas {};
     StampverketParams stampverket;
     HuggParams hugget;
+    DimmaParams dimman;
     std::array<bool, antalSpar> sparTyst {};
     TaktInstallningar takt;
     int grundton = 33;            // MIDI-ton för basgångens 0 (A1)
@@ -79,17 +81,18 @@ struct MotorParams
     bool latLoopa = true;         // efter sista raden: börja om (annars tyst)
     int stamning = 0;             // StamningTyp
     int stamningTon = 0;          // tonikan: 0 = grundtonen, 1–12 = C … H
+    int midiUt = 0;               // 0 av, 1 med ljudet, 2 bara MIDI (de sekvenserade kanalerna tystnar)
     ModParams mod;
 };
 
 // Mönstren som motorn spelar (ägs av processorn; gränssnittet skriver, ljudtråden läser).
 struct Banker
 {
-    TonBank kolvbasen, kolvbas2, hugget;
+    TonBank kolvbasen, kolvbas2, hugget, dimman;
     TrumBank trummor;
     Laten laten;
-    TonBank& ton (int kanal) { return kanal == 0 ? kolvbasen : (kanal == 1 ? kolvbas2 : hugget); }
-    const TonBank& ton (int kanal) const { return kanal == 0 ? kolvbasen : (kanal == 1 ? kolvbas2 : hugget); }
+    TonBank& ton (int kanal) { return kanal == 0 ? kolvbasen : (kanal == 1 ? kolvbas2 : (kanal == 4 ? dimman : hugget)); }
+    const TonBank& ton (int kanal) const { return kanal == 0 ? kolvbasen : (kanal == 1 ? kolvbas2 : (kanal == 4 ? dimman : hugget)); }
 };
 
 class Motor
@@ -100,6 +103,9 @@ public:
         sr = sampleRate;
         for (auto& k : kolvbas) { k.prepare (sampleRate); k.setStamning (&stamningTabell); }
         hugget.setStamning (&stamningTabell);
+        dimman.setStamning (&stamningTabell);
+        dimman.prepare (sampleRate);
+        utMidi.ensureSize (16384);   // MIDI ut: plats för många händelser per block, så att ljudtråden inte allokerar
         stamningNyckel = -1;
         uppdateraStamning();
         stampverket.prepare (sampleRate);
@@ -123,6 +129,9 @@ public:
         for (auto& k : kolvbas) k.reset();
         stampverket.reset();
         hugget.reset();
+        dimman.reset();
+        dimHaller = -1; dronTon = -1; antalDimAv = 0;
+        antalUt = 0;
         taktverket.reset();
         for (auto& d : drivet) d.reset();
         grindrum.reset(); eko.reset(); svaj.reset(); klam.reset(); kassetten.reset();
@@ -161,15 +170,28 @@ public:
         if (! transport.hostSpelar) takt.tempo *= bas.musikalisktVarv;   // egen klocka: musikaliskt varvtal sänker tempot
         const int antalSteg = taktverket.process (takt, transport, egenKlocka, numSamples);
         const bool gar = taktverket.gar();
+        utMidi.clear();
+        utPos = 0;
+        // MIDI ut: allt som klingar släpps vid stopp, hopp och när MIDI ut slås av.
+        if (antalUt > 0 && (! gar || taktverket.hoppade() || bas.midiUt == 0)) utAllaAv();
         if (taktverket.hoppade())
         {
             for (auto& k : kolvbas) k.allNotesOff();
             hugget.allNotesOff();
+            dimman.allNotesOff();
             basHaller = { false, false };
             huggHaller = -1;
+            dimHaller = -1; dronTon = -1; antalDimAv = 0;
             antalVantande = 0;
             antalHuggAv = 0;
             latOmvardera = true;
+        }
+        // Drönet släpps när sekvensern stannar, när drönläget slås av och när Dimman spelas från MIDI.
+        if (dronTon >= 0 && (! gar || bas.dimman.dron == DronLage::Av || bas.kanaler[(size_t) Kanal::Dimman].midi))
+        {
+            dimman.noteOff (dronTon);
+            dronTon = -1;
+            utSlappKanal (4, false);
         }
         if (! gar)
         {
@@ -197,6 +219,7 @@ public:
 
             for (; midiIt != midi.cend() && (*midiIt).samplePosition <= i; ++midiIt)
                 hanteraMidi ((*midiIt).getMessage(), gar);
+            utPos = i;
 
             while (stegIndex < antalSteg && taktverket.handelse (stegIndex).offset <= i)
                 spelaSteg (taktverket.handelse (stegIndex++).k, banker);
@@ -211,6 +234,10 @@ public:
             const float tr = drivet[2].tick (stampverket.tick());
             hl = drivet[3].tick (hl);
             hr = drivet[4].tick (hr);
+            float dl = 0.0f, dr = 0.0f;
+            dimman.tick (dl, dr);
+            dl = drivet[5].tick (dl);
+            dr = drivet[6].tick (dr);
 
             float L = 0.0f, R = 0.0f, aL = 0.0f, aR = 0.0f, bL = 0.0f, bR = 0.0f;
             auto kanal = [&] (size_t k, float l, float r)
@@ -227,6 +254,7 @@ public:
             kanal (1, b1, b1);
             kanal (2, tr, tr);
             kanal (3, hl, hr);
+            kanal (4, dl, dr);
 
             // --- Effekterna
             float gL, gR, eL, eR;
@@ -324,6 +352,8 @@ private:
             }
             e.hugget.tonhojdOffset += st;
             e.hugget.attack *= tid; e.hugget.fall *= tid; e.hugget.slapp *= tid;
+            e.dimman.tonhojdOffset += st;
+            e.dimman.attack *= tid; e.dimman.slapp *= tid;
             e.stampverket.stamningOffset += st;
             e.stampverket.tidFaktor *= tid;
         }
@@ -348,6 +378,8 @@ private:
             }
             auto& sv = e.kanaler[(size_t) Kanal::Stampverket];
             sv.sandA = std::min (1.0f, sv.sandA + 0.3f * s);
+            e.dimman.klang = std::min (1.0f, e.dimman.klang + 0.25f * s);
+            e.dimman.rorelse = std::min (1.0f, e.dimman.rorelse + 0.3f * s);
             e.grindrum.hallTid += 0.1f * s;
             e.eko.aterkoppling = std::min (0.9f, e.eko.aterkoppling + 0.2f * s);
             e.klam.troskelDb -= 6.0f * s;
@@ -377,6 +409,9 @@ private:
         for (size_t k = 0; k < 3; ++k) drivet[k].setParams (e.kanaler[k].drivet);
         drivet[3].setParams (e.kanaler[3].drivet);
         drivet[4].setParams (e.kanaler[3].drivet);
+        dimman.setParams (e.dimman);
+        drivet[5].setParams (e.kanaler[4].drivet);
+        drivet[6].setParams (e.kanaler[4].drivet);
         grindrum.setParams (e.grindrum);
         eko.setParams (e.eko, taktverket.gar() ? taktverket.bpm() : bas.takt.tempo);
         svaj.setParams (e.svaj);
@@ -390,7 +425,8 @@ private:
         {
             const auto& kp = e.kanaler[k];
             const bool latTyst = latAktiv && (latSlut || latNu.tyst[k]);
-            mal[k] = (kp.tyst || latTyst || (nagonSolo && ! kp.solo)) ? 0.0f : kp.niva;
+            mal[k] = (kp.tyst || latTyst || (nagonSolo && ! kp.solo) || (e.midiUt == 2 && ! kp.midi)) ? 0.0f : kp.niva;
+            hors[k] = ! (kp.tyst || latTyst || (nagonSolo && ! kp.solo));   // MIDI ut skickar bara kanaler som hörs i mixen
             if (forstaBlocket) kanalNiva[k] = mal[k];
             const float vinkel = (std::clamp (kp.pan, -1.0f, 1.0f) + 1.0f) * (float) pi * 0.25f;
             panL[k] = std::cos (vinkel) * 1.41421356f;
@@ -411,6 +447,79 @@ private:
         }
     }
 
+    // --- MIDI ut: sekvensernas toner på kanalerna 1 Kolvbasen, 2 Kolvbas 2, 3 Hugget, 4 Dimman och 10 Stampverket.
+    // Grundtonen i Huggets och Dimmans ackord skickas (ackordet hör till ljudet). Trummorna släpps efter en halv
+    // sextondel; glid hålls till nästa ton (den nya tonen slås an innan den gamla släpps, som legato).
+    struct UtNot { int kanal, notnr, om; int ljudKanal; };   // om −1 = hålls till kanalens nästa ton
+    bool utPa (int ljudKanal) const { return bas.midiUt != 0 && hors[(size_t) ljudKanal]; }
+    static int utStyrka (float vel) { return juce::jlimit (1, 127, juce::roundToInt (vel * 127.0f)); }
+    void utPaNot (int kanal, int notnr, float vel) { utMidi.addEvent (juce::MidiMessage::noteOn (kanal, notnr, (juce::uint8) utStyrka (vel)), utPos); }
+    void utAv (int kanal, int notnr) { utMidi.addEvent (juce::MidiMessage::noteOff (kanal, notnr), utPos); }
+    void utLagg (int kanal, int notnr, int om, int ljudKanal)
+    {
+        if (antalUt < (int) ut.size()) ut[(size_t) antalUt++] = { kanal, notnr, om, ljudKanal };
+        else utAv (kanal, notnr);   // fullt: släpp direkt hellre än att hänga
+    }
+    // Släpper kanalens toner (alla, eller bara de hållna) och tar bort dem ur listan.
+    void utSlappKanal (int kanal, bool baraHallna, int utom = -1)
+    {
+        for (int i = 0; i < antalUt;)
+        {
+            const auto u = ut[(size_t) i];
+            if (u.kanal == kanal && (! baraHallna || u.om < 0) && u.notnr != utom) { utAv (u.kanal, u.notnr); ut[(size_t) i] = ut[(size_t) --antalUt]; }
+            else ++i;
+        }
+    }
+    void utAllaAv()
+    {
+        for (int i = 0; i < antalUt; ++i) utAv (ut[(size_t) i].kanal, ut[(size_t) i].notnr);
+        antalUt = 0;
+    }
+    // En monofon kanal (basarna, drönet): legato slår an den nya tonen före den gamla släpps.
+    void utMono (int ljudKanal, int kanal, int notnr, float vel, int om, bool legato)
+    {
+        if (! utPa (ljudKanal)) { utSlappKanal (kanal, false); return; }
+        bool somForut = false;
+        for (int i = 0; i < antalUt; ++i) somForut = somForut || (ut[(size_t) i].kanal == kanal && ut[(size_t) i].notnr == notnr);
+        if (legato && somForut)
+        {
+            // Samma ton, bunden: ingen ny anslagning – bara nytt släpp.
+            for (int i = 0; i < antalUt; ++i) if (ut[(size_t) i].kanal == kanal && ut[(size_t) i].notnr == notnr) ut[(size_t) i].om = om;
+            utSlappKanal (kanal, false, notnr);
+            return;
+        }
+        if (! legato) utSlappKanal (kanal, false);
+        utPaNot (kanal, notnr, vel);
+        if (legato) utSlappKanal (kanal, false);
+        utLagg (kanal, notnr, om, ljudKanal);
+    }
+    // En polyfon kanal (Hugget, Dimmans mönster): hållna toner släpps när nästa ton kommer.
+    void utPoly (int ljudKanal, int kanal, int notnr, float vel, int om)
+    {
+        utSlappKanal (kanal, true);
+        if (! utPa (ljudKanal)) return;
+        utSlappKanal (kanal, false);   // samma ton igen: släpp först
+        utPaNot (kanal, notnr, vel);
+        utLagg (kanal, notnr, om, ljudKanal);
+    }
+    void utTrumma (int spar, float vel)
+    {
+        if (! utPa ((int) Kanal::Stampverket)) return;
+        const int notnr = Stampverket::notForSpar (spar);
+        for (int i = 0; i < antalUt;)
+        {
+            if (ut[(size_t) i].kanal == 10 && ut[(size_t) i].notnr == notnr) { utAv (10, notnr); ut[(size_t) i] = ut[(size_t) --antalUt]; }
+            else ++i;
+        }
+        utPaNot (10, notnr, vel);
+        utLagg (10, notnr, juce::jmax (1, (int) (taktverket.samplesPerSteg() * 0.5)), (int) Kanal::Stampverket);
+    }
+
+public:
+    // MIDI ut från det senaste blocket (offset i blocket).
+    const juce::MidiBuffer& getUtMidi() const { return utMidi; }
+
+private:
     void slaTrumma (Trumma t, float vel)
     {
         stampverket.slag (t, vel);
@@ -436,12 +545,12 @@ private:
             return;
         }
 
-        if (m.isAllNotesOff() || m.isAllSoundOff()) { for (auto& k : kolvbas) k.allNotesOff(); hugget.allNotesOff(); return; }
+        if (m.isAllNotesOff() || m.isAllSoundOff()) { for (auto& k : kolvbas) k.allNotesOff(); hugget.allNotesOff(); dimman.allNotesOff(); return; }
 
         // MIDI-kanal 1 Kolvbasen, 2 Kolvbas 2, 3 Hugget. När sekvensern går transponerar tonerna i stället,
         // utom till en kanal som spelas från MIDI (då spelar tonen alltid kanalen).
         const int kanal = m.getChannel();
-        const int malKanal = kanal == 2 ? 1 : (kanal == 3 ? 3 : 0);
+        const int malKanal = kanal == 2 ? 1 : (kanal == 3 ? 3 : (kanal == 4 ? 4 : 0));
         if (gar && ! bas.kanaler[(size_t) malKanal].midi)
         {
             if (m.isNoteOn()) transponering = juce::jlimit (-24, 24, m.getNoteNumber() - bas.grundton);
@@ -451,6 +560,12 @@ private:
         {
             if (m.isNoteOn()) { hugget.noteOn (m.getNoteNumber(), m.getFloatVelocity()); modulation.tonPa (EnvUtlosare::Hugget, m.getFloatVelocity()); raknaSlag (Kanal::Hugget); }
             else if (m.isNoteOff()) hugget.noteOff (m.getNoteNumber());
+            return;
+        }
+        if (kanal == 4)
+        {
+            if (m.isNoteOn()) { dimman.noteOn (m.getNoteNumber(), m.getFloatVelocity()); raknaSlag (Kanal::Dimman); }
+            else if (m.isNoteOff()) dimman.noteOff (m.getNoteNumber());
             return;
         }
         auto& b = kolvbas[kanal == 2 ? 1 : 0];
@@ -523,6 +638,7 @@ private:
                 if (st.chans > 0 && Taktverket::chansSlag (k, s) >= chansVarden[(size_t) st.chans]) continue;
                 const float vel = st.slag == 2 ? 1.0f : 0.72f;
                 slaTrumma ((Trumma) s, vel);
+                utTrumma (s, vel);
                 if (s == 0) modulation.tonPa (EnvUtlosare::Bastrumma, vel);
                 const int slag = st.ratchet + 1;
                 for (int h = 1; h < slag; ++h)
@@ -554,6 +670,7 @@ private:
             const int ton = juce::jlimit (0, 127, bas.grundton + transponering + extra + st.tonhojd());
             const int gate = st.glid ? -1 : juce::jmax (1, (int) (perSteg * tonLangder[(size_t) st.langd]));
             kolvbas[(size_t) b].steg (ton, st.slag == 2, basHaller[(size_t) b], gate);
+            utMono (b, b + 1, ton, st.slag == 2 ? 1.0f : 0.72f, gate, basHaller[(size_t) b]);
             basHaller[(size_t) b] = st.glid;
             modulation.tonPa (b == 0 ? EnvUtlosare::Kolvbasen : EnvUtlosare::Kolvbas2, st.slag == 2 ? 1.0f : 0.72f);
             raknaSlag ((Kanal) b);
@@ -576,11 +693,55 @@ private:
                 const int ton = juce::jlimit (0, 127, bas.grundton + 12 * (2 + bas.huggOktav) + transponering + latTransponering() + st.tonhojd());
                 const float vel = st.slag == 2 ? 1.0f : 0.72f;
                 hugget.noteOn (ton, vel);
+                utPoly ((int) Kanal::Hugget, 3, ton, vel, st.glid ? -1 : juce::jmax (1, (int) (perSteg * tonLangder[(size_t) st.langd])));
                 modulation.tonPa (EnvUtlosare::Hugget, vel);
                 raknaSlag (Kanal::Hugget);
                 if (st.glid) huggHaller = ton;   // hålls till nästa ton
                 else if (antalHuggAv < (int) huggAv.size())
                     huggAv[(size_t) antalHuggAv++] = { ton, juce::jmax (1, (int) (perSteg * tonLangder[(size_t) st.langd])) };
+            }
+        }
+
+        // --- Dimman: mönster med hållna ackord, eller drönet som håller grundtonen (eller ackordet).
+        if (! bas.kanaler[(size_t) Kanal::Dimman].midi)
+        {
+            const auto& kp = bas.kanaler[(size_t) Kanal::Dimman];
+            const int bas0 = bas.grundton + 12 * (2 + bas.dimman.oktav) + transponering + latTransponering();
+            if (bas.dimman.dron != DronLage::Av)
+            {
+                // Drönet byter ton bara när grundtonen, transponeringen eller låtens rad flyttar den.
+                const int ton = juce::jlimit (0, 127, bas0);
+                if (ton != dronTon)
+                {
+                    if (dronTon >= 0) dimman.noteOff (dronTon);
+                    dimman.noteOn (ton, 0.8f, bas.dimman.dron == DronLage::Grundton ? 0 : bas.dimman.ackord);
+                    utMono ((int) Kanal::Dimman, 4, ton, 0.8f, -1, false);
+                    dronTon = ton;
+                    raknaSlag (Kanal::Dimman);
+                }
+                aktuelltSteg[(size_t) Kanal::Dimman].store (-1, std::memory_order_relaxed);
+                spelarMonster[(size_t) Kanal::Dimman].store (-1, std::memory_order_relaxed);
+            }
+            else
+            {
+                const int langd = juce::jlimit (1, maxSteg, kp.langd);
+                const int steg = (int) (k % langd);
+                const int m = aktivtMonster[(size_t) Kanal::Dimman];
+                const auto& monster = banker.dimman.get (m, variantFor (variantAv (Kanal::Dimman), k, langd));
+                aktuelltSteg[(size_t) Kanal::Dimman].store (steg, std::memory_order_relaxed);
+                spelarMonster[(size_t) Kanal::Dimman].store (m, std::memory_order_relaxed);
+                const auto st = monster.get (steg);
+                if (st.slag != 0)
+                {
+                    if (dimHaller >= 0) { dimman.noteOff (dimHaller); dimHaller = -1; }
+                    const int ton = juce::jlimit (0, 127, bas0 + st.tonhojd());
+                    dimman.noteOn (ton, st.slag == 2 ? 1.0f : 0.72f);
+                    utPoly ((int) Kanal::Dimman, 4, ton, st.slag == 2 ? 1.0f : 0.72f, st.glid ? -1 : juce::jmax (1, (int) (perSteg * tonLangder[(size_t) st.langd])));
+                    raknaSlag (Kanal::Dimman);
+                    if (st.glid) dimHaller = ton;   // hålls till nästa ton
+                    else if (antalDimAv < (int) dimAv.size())
+                        dimAv[(size_t) antalDimAv++] = { ton, juce::jmax (1, (int) (perSteg * tonLangder[(size_t) st.langd])) };
+                }
             }
         }
     }
@@ -594,11 +755,18 @@ private:
     }
     void tickVantande()
     {
+        for (int i = 0; i < antalUt;)
+        {
+            auto& u = ut[(size_t) i];
+            if (u.om > 0 && --u.om == 0) { utAv (u.kanal, u.notnr); ut[(size_t) i] = ut[(size_t) --antalUt]; }
+            else ++i;
+        }
         for (int i = 0; i < antalVantande;)
         {
             if (--vantande[(size_t) i].om <= 0)
             {
                 slaTrumma ((Trumma) vantande[(size_t) i].spar, vantande[(size_t) i].vel);
+                utTrumma (vantande[(size_t) i].spar, vantande[(size_t) i].vel);
                 vantande[(size_t) i] = vantande[(size_t) --antalVantande];
             }
             else ++i;
@@ -609,6 +777,15 @@ private:
             {
                 hugget.noteOff (huggAv[(size_t) i].ton);
                 huggAv[(size_t) i] = huggAv[(size_t) --antalHuggAv];
+            }
+            else ++i;
+        }
+        for (int i = 0; i < antalDimAv;)
+        {
+            if (--dimAv[(size_t) i].om <= 0)
+            {
+                dimman.noteOff (dimAv[(size_t) i].ton);
+                dimAv[(size_t) i] = dimAv[(size_t) --antalDimAv];
             }
             else ++i;
         }
@@ -625,7 +802,14 @@ private:
     const EgenStamning* egenStamning = nullptr;
     juce::int64 stamningNyckel = -1;
     Taktverket taktverket;
-    std::array<Drivet, 5> drivet;           // Kolvbasen, Kolvbas 2, Stampverket, Hugget vänster och höger
+    std::array<Drivet, 7> drivet;           // Kolvbasen, Kolvbas 2, Stampverket, Hugget och Dimman vänster och höger
+    Dimman dimman;
+    int dimHaller = -1, dronTon = -1, antalDimAv = 0;
+    juce::MidiBuffer utMidi;
+    std::array<UtNot, 96> ut {};
+    int antalUt = 0, utPos = 0;
+    std::array<bool, antalKanaler> hors {};
+    std::array<HuggAv, 32> dimAv {};
     Grindrummet grindrum;
     Ekot eko;
     Svajet svaj;

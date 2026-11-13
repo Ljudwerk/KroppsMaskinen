@@ -132,7 +132,10 @@ inline const Matris* matris (juce::juce_wchar c)
 {
     auto& t = detalj::tabell();
     auto it = t.find (c);
-    if (it == t.end()) it = t.find ((juce::juce_wchar) juce::CharacterFunctions::toUpperCase (c));
+    // Versalen för c – också å, ä, ö och de andra Latin-1-gemenerna, som toUpperCase() missar på macOS
+    // (samma som krang::ui::versal i krang-libs; Kroppsmaskinen använder inte krang-libs).
+    const juce::juce_wchar v = (c >= 'a' && c <= 'z') || (c >= 0xE0 && c <= 0xFE && c != 0xF7) ? c - 32 : juce::CharacterFunctions::toUpperCase (c);
+    if (it == t.end()) it = t.find (v);
     return it != t.end() ? &it->second : nullptr;
 }
 

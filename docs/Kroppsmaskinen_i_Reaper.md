@@ -50,7 +50,7 @@ Det här är det viktigaste att förstå:
 | **Position** | Börjar alltid från början | Följer Reapers position exakt. Hoppar du, loopar eller spolar, hänger sekvensern med. |
 | **Låtläget** | Från rad 1 när du trycker SPELA | Takt 1 i projektet = rad 1 i låten. Låten räknas alltid från projektets början. |
 | **Varvtalet** | Sänker tempo och tonhöjd | Bara tonhöjden och klangtiderna – tempot följer projektet. Skivspelarläget blir musikaliskt läge. |
-| **MIDI-toner när sekvensern går** | Transponerar tongångarna | Samma: en ton på kanal 1–3 flyttar alla tongångar (räknat från Grundton), om inte kanalen spelas från MIDI (se del B). |
+| **MIDI-toner när sekvensern går** | Transponerar tongångarna | Samma: en ton på kanal 1–4 flyttar alla tongångar (räknat från Grundton), om inte kanalen spelas från MIDI (se del B). |
 
 Ekot, LFO:er i takt och Gung följer projektets tempo. Projektet ska gå i **4/4** – en takt är alltid 16 sextondelar för Kroppsmaskinen.
 
@@ -121,9 +121,10 @@ MIDI-spel gäller **bara den kanalen**. De andra kanalerna fortsätter spela sin
 | Kolvbasen | 1 | Monofon bas |
 | Kolvbas 2 | 2 | Monofon bas |
 | Hugget | 3 | Åtta röster; med ackordminnet blir varje ton ett ackord |
+| Dimman | 4 | Mattor och drön, tolv röster; med ackordminnet blir varje ton ett ackord |
 | Stampverket | 10 | Trummor enligt GM-kartan (se [Referens](#referens-midi)) |
 
-Utan MIDI-spel gäller det vanliga: medan sekvensern går transponerar tonerna på kanal 1–3 i stället för att spela. Trummorna på kanal 10 spelar alltid, men med MIDI-spel av spelar sekvensens trummor dessutom.
+Utan MIDI-spel gäller det vanliga: medan sekvensern går transponerar tonerna på kanal 1–4 i stället för att spela. Trummorna på kanal 10 spelar alltid, men med MIDI-spel av spelar sekvensens trummor dessutom.
 
 ### B2. Basen som synt
 
@@ -149,9 +150,15 @@ Utan MIDI-spel gäller det vanliga: medan sekvensern går transponerar tonerna p
 2. MIDI-spel på för Hugget, toner på **kanal 3**.
 3. Med ett ackord i ackordminnet (t.ex. *Moll*) räcker en ton per stöt. Utan ackord spelar Hugget upp till åtta toner samtidigt.
 
+### B4b. Dimman för mattor och drön
+
+1. Välj läge i KANAL-vyn för Dimman (*Syntmatta*, *Kör* eller *Drönmaskin*), eller ett Dimman-ljud under **LJUD**. Långa **Attack** och **Släpp** ger mattor; **Ensemble** gör dem breda.
+2. MIDI-spel på för Dimman, toner på **kanal 4**. Håll tonerna länge – Dimman har tolv röster, så ackord och överlappande släpp går bra.
+3. Eller låt Dimman själv hålla ett drön: **Drön** = *Grundton* eller *Ackord* i KANAL-vyn. Drönet låter så länge Reaper spelar och flyttar med när du transponerar (MIDI på kanal 1).
+
 ### B5. En instans per ljud eller en för allt?
 
-- **En instans för allt:** en Kroppsmaskinen, MIDI på kanal 1, 2, 3 och 10 från en eller flera MIDI-regioner på samma spår (eller skickade till spåret, se nedan). Allt delar effekter (Grindrummet, Ekot, Klämman) – det låter sammanhållet, som en maskin.
+- **En instans för allt:** en Kroppsmaskinen, MIDI på kanal 1, 2, 3, 4 och 10 från en eller flera MIDI-regioner på samma spår (eller skickade till spåret, se nedan). Allt delar effekter (Grindrummet, Ekot, Klämman) – det låter sammanhållet, som en maskin.
 - **En instans per ljud:** ett spår med Kroppsmaskinen för basen, ett för trummorna osv. Varje spår får egna effekter i Reaper och egen fader. Mer flexibelt i mixen, mer processorkraft.
 
 Skicka MIDI från flera spår till en instans: på MIDI-spåret, öppna **Route** → *Add new send* till instrumentspåret, sätt *Audio* till *None* och *MIDI* till rätt kanal (t.ex. *All → 10*).
@@ -161,6 +168,27 @@ Skicka MIDI från flera spår till en instans: på MIDI-spåret, öppna **Route*
 Ett bra arbetssätt för EBM: låt Kroppsmaskinens sekvenser spela basen och trummorna (mönster eller låtläget), och spela stötarna i Hugget från Reaper (MIDI-spel på Hugget). Eller tvärtom: trummor från sekvensern och basen inspelad från ett keyboard.
 
 ---
+
+### B7. MIDI ut: sekvenserna styr andra instrument
+
+Kroppsmaskinens sekvenser kan skicka sina toner som MIDI – till en annan synt i Reaper eller till hårdvara. Klicka på **MIDI UT** under transportknapparna (Skift-klick eller högerklick bakåt):
+
+| Läge | Vad |
+| --- | --- |
+| *Av* | Inget skickas (som förut). |
+| *Med ljudet* | Kroppsmaskinen låter som vanligt och skickar dessutom tonerna. |
+| *Bara MIDI* | De sekvenserade kanalerna tystnar i Kroppsmaskinen; bara tonerna går ut. Kanaler som spelas från MIDI (MIDI-spel) låter fortfarande. |
+
+Tonerna går ut på samma kanaler som MIDI-spel tar emot: **1** Kolvbasen, **2** Kolvbas 2, **3** Hugget, **4** Dimman och **10** Stampverket (GM-kartan, se [Referens](#referens-midi)). Anslaget är 127 för accent och 91 annars. Hugget och Dimman skickar grundtonen – ackordminnet hör till Kroppsmaskinens ljud. Glid skickas som legato (den nya tonen före den gamlas släpp), så att en mono-synt med glid glider. Drönet hålls så länge sekvensern går. En kanal som är tyst – med **Tyst**, solo på en annan kanal eller en tyst rad i låten – skickar inget. MIDI ut hör, som MIDI-spel, till uppkopplingen: presets ändrar det inte.
+
+I Reaper:
+
+1. Sätt **MIDI UT** på *Med ljudet* eller *Bara MIDI*.
+2. **Till en annan synt:** skapa ett spår med synten, och på Kroppsmaskinens spår **Route** → *Add new send* till syntens spår, *Audio* = *None*, *MIDI* = *All* (eller bara en kanal, t.ex. *1 → All* för basen).
+3. **Till hårdvara:** på Kroppsmaskinens spår **Route** → *MIDI Hardware Output* → välj utgången (och kanal, eller *Original channels*).
+4. Behöver du bara en del, välj kanal i sänden – en mono-synt på kanal 1 spelar Kolvbasens gång.
+
+MIDI-klocka skickas inte (VST3 kan inte skicka klocka från ett plugin); låt Reaper skicka klockan till hårdvaran (*Preferences → MIDI Devices*, utgångens *Send clock*).
 
 ## Mixa, separata spår och rendering
 

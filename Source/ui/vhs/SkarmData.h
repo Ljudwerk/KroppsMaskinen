@@ -20,7 +20,7 @@ enum class Bandstyrka { Av = 0, Lite, Mycket };
 
 struct SkarmData
 {
-    int  kanal   = 0;                // 0 Kolvbasen, 1 Kolvbas 2, 2 Stampverket, 3 Hugget
+    int  kanal   = 0;                // 0 Kolvbasen, 1 Kolvbas 2, 2 Stampverket, 3 Hugget, 4 Dimman
     Vy   vy      = Vy::Kanal;
     bool spelar  = false;
 
@@ -33,12 +33,12 @@ struct SkarmData
     char  variant = 'A';             // 'A' eller 'B'
 
     // Händelser: ökar med ett för varje slag (jämför med förra värdet för att se nya slag).
-    std::array<uint32_t, 4>  kanalSlag {};     // per kanal
+    std::array<uint32_t, antalKanaler>  kanalSlag {};     // per kanal
     std::array<uint32_t, 12> trumSlag {};      // per trumma i Stampverket (spårordning som i Monster.h)
     int valdTrumma = 0;                        // vald trumma i Stampverket (TR-väljaren)
 
     // Nivåer 0..1 (topp sedan förra bildrutan).
-    std::array<float, 4> kanalNiva {};
+    std::array<float, antalKanaler> kanalNiva {};
     float niva = 0.0f;                         // mastern
     std::array<float, 256> scope {};           // senaste utsignalen (mono, −1..1), äldst först
 

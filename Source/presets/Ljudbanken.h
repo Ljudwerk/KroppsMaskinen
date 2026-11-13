@@ -18,9 +18,16 @@
 namespace km
 {
 
-enum class LjudTyp { Bas = 0, Trummor, Hugget };
-inline LjudTyp ljudTyp (int kanal) { return kanal == (int) Kanal::Stampverket ? LjudTyp::Trummor : (kanal == (int) Kanal::Hugget ? LjudTyp::Hugget : LjudTyp::Bas); }
-inline const char* ljudTypNamn (LjudTyp t) { return t == LjudTyp::Bas ? "Bas" : (t == LjudTyp::Trummor ? "Trummor" : "Hugget"); }
+enum class LjudTyp { Bas = 0, Trummor, Hugget, Dimman };
+inline LjudTyp ljudTyp (int kanal)
+{
+    return kanal == (int) Kanal::Stampverket ? LjudTyp::Trummor
+         : (kanal == (int) Kanal::Hugget ? LjudTyp::Hugget : (kanal == (int) Kanal::Dimman ? LjudTyp::Dimman : LjudTyp::Bas));
+}
+inline const char* ljudTypNamn (LjudTyp t)
+{
+    return t == LjudTyp::Bas ? "Bas" : (t == LjudTyp::Trummor ? "Trummor" : (t == LjudTyp::Hugget ? "Hugget" : "Dimman"));
+}
 
 // Parametrar som hör till takten, mönstren och mixen – inte till ljudet. Används av ljudbanken och av
 // "Lås mönstren" (presets som laddas utan att mönster, låt och tempo byts).
@@ -31,17 +38,17 @@ inline bool arMonsterParameter (const juce::String& id)
                      id::folj, id::forskjutning, id::transponering })
         if (id == g) return true;
     for (int k = 0; k < antalKanaler; ++k)
-        for (auto* v : { "langd", "monster", "variant", "tyst", "solo", "midi" })
+        for (auto* v : { "langd", "monster", "variant", "tyst", "solo", "midi", "dron" })
             if (id == id::kanal (k, v)) return true;
     return false;
 }
 
-// Uppkopplingen: spela-knappen och MIDI-spel (per kanal och Allt från MIDI). Hör till hur pluginet
+// Uppkopplingen: spela-knappen, MIDI-spel (per kanal och Allt från MIDI) och MIDI ut. Hör till hur pluginet
 // används i studion, inte till låten, så presets lämnar dem som de är.
 inline bool arUppkoppling (const juce::String& id)
 {
     using namespace params;
-    if (id == id::spela || id == id::midiAlla) return true;
+    if (id == id::spela || id == id::midiAlla || id == id::midiUt) return true;
     for (int k = 0; k < antalKanaler; ++k)
         if (id == id::kanal (k, "midi")) return true;
     return false;
@@ -60,7 +67,7 @@ class Ljudbanken
 public:
     explicit Ljudbanken (juce::AudioProcessorValueTreeState& s) : state (s) { refresh(); }
 
-    static constexpr int antalTyper = 3;
+    static constexpr int antalTyper = 4;
     static inline const juce::String filandelse { ".km87ljud" };
 
     // Ljudets parametrar för en kanal: ändelserna efter kanalens prefix, utan mix (nivå, panorering,
@@ -169,7 +176,7 @@ private:
     // Fabriksljuden: Init (grundvärdena) och varje fabrikspresets använda kanaler.
     void byggFabriksljud()
     {
-        const int kanalFor[antalTyper] { 0, (int) Kanal::Stampverket, (int) Kanal::Hugget };
+        const int kanalFor[antalTyper] { 0, (int) Kanal::Stampverket, (int) Kanal::Hugget, (int) Kanal::Dimman };
         for (int t = 0; t < antalTyper; ++t)
         {
             Ljud init { "Init", "Grund", {}, true, {} };
@@ -191,6 +198,7 @@ private:
                 if (k == (int) Kanal::Stampverket) return ! fp.trummor.empty();
                 for (const auto& t : fp.toner) if ((int) t.kanal == k) return true;
                 if (k == 1) { const auto it = satta.find (params::id::folj); return it != satta.end() && it->second > 0.5f; }
+                if (k == (int) Kanal::Dimman) { const auto it = satta.find (params::id::di ("dron")); return it != satta.end() && it->second > 0.5f; }
                 return false;
             };
             for (int k = 0; k < antalKanaler; ++k)

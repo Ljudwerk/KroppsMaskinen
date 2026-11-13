@@ -2,7 +2,7 @@
 
 *Modell KM-87. En groovebox för Electronic Body Music och New Beat, byggd som om den kom ur en svart hemelektroniklåda från 1987 och bara gick att se på genom en VHS-skärm.*
 
-**Status:** Fas 0–3 klara och grind 0–3 godkända. Fas 4, fabriksbandet (1.0), är byggd och väntar på grind 4 (inga externa testare än). Fas 5 pågår (beslut 3 november 2026): mikrotonala stämningar och Gjuteriet (fysiskt modellerad metall) är klara i kod och ska lyssnas på; pads och drön (femte kanalen) är nästa. `KMRender --test`: 160 kontroller, alla går igenom; `KMSnapshot --klicktest` går igenom.
+**Status:** Fas 0–3 klara och grind 0–3 godkända. Fas 4, fabriksbandet (1.0), är byggd och väntar på grind 4 (inga externa testare än). Fas 5 pågår (beslut 3 november 2026): mikrotonala stämningar och Gjuteriet är klara, Dimman är godkänd (11 november 2026); MIDI ut från Taktverket är klart i kod och ska provas på Macen. Därmed är fas 5:s planerade kandidater byggda (krang-libs bara om kopiorna glider isär). `KMRender --test`: 178 kontroller, alla går igenom; `KMSnapshot --klicktest` går igenom.
 
 Instrument-plugin (VST3, AU, CLAP) och fristående app för macOS, på samma stack som KrangBox. Allt ljud är syntetiskt. Allt i gränssnittet är på svenska.
 
@@ -270,9 +270,37 @@ Varje fas slutar med en **grind**: ett lyssnings- eller granskningstest som mås
 
 - *Mikrotonala stämningar (3 november 2026). En global stämning för Kolvbasen, Kolvbas 2 och Hugget (`Source/dsp/Stamning.h`): elva inbyggda (liksvävande, ren, pytagoreisk, medeltonig, Werckmeister III, Rast, Bayati, Slendro, Pelog, 24-TET, 19-TET) och Egen med Scala-filer (`.scl` och `.kbm`). Tonikan är grundtonen eller en vald ton. Motorn räknar en tabell från tangent till liksvävande tonnummer, så glid, transponering och modulation fungerar som förut; trummorna påverkas inte. Den egna skalans text sparas i läget (egenskaperna `scl`, `kbm`, `sclNamn`). Parametrarna* Stämning *och* Stämningens tonika *ligger sist och räknas som låt (Lås mönstren behåller dem). Reglagen sitter i MIXER-vyns* Takt och master. *Mätt: liksvävande är exakt (0,00 cent); Kolvbasen och Hugget stämmer inom 0,1 cent i bas, mellanläge och diskant; Rast sänker E en kvartston (−50 cent).*
 - *Metall i Stampverket (3 november 2026). Ett femte kit,* Gjuteriet*, med fysiskt modellerade kroppar: modala resonatorer (upp till 32 per röst) för stav, rör (med svävande par), plåt (rektangulär, fritt upplagd), oljefatets botten (cirkulärt membran), städ och kyrkklocka, anslagna av en klubba vars längd ger hårdheten och vars plats väger moderna; kedjan är många slumpade anslag med varierande länkar, och fjädern en fördröjning med en allpasskedja (dispersion). Spåren, MIDI-tonerna och reglagen (Stämning, Klang, Nivå) är desamma som i de andra kiten. Kitet heter Gjuteriet för att inte förväxlas med presetet* Smedjan 118*. Nivåerna är jämnade mot Fabrik-kitet (RMS per spår inom ungefär 1 dB). Gjuteriet ska lyssnas på (`KMRender --trummor <katalog> 5`).*
+- *Pads och drön: **Dimman**, en femte kanal (8 november 2026). Tolv röster i stereo (`Source/dsp/Dimman.h`), tre lägen: Syntmatta (tre svävande sågtänder och en fyrkant en oktav ned genom ett mjukt lågpass), Kör (tre formantfilter, vokalen glider a → o → i) och Drönmaskin (sågtänder ringmodulerade mot en sinus i oharmonisk kvot, subsinus, långsam drift och brus genom ett svepande bandpass). Ackordminnet är Huggets; Rörelse, Bredd, Vokal och en ensemble (tre modulerade fördröjningar) över hela kanalen. Dimman spelar ett eget mönster (glid håller ackordet till nästa ton) eller, i drönläget (Grundton eller Ackord), håller tonen så länge sekvensern går och flyttar med transponeringen och låtens rader. MIDI-kanal 4. Egen remsa i MIXER (remsorna är nu 134 punkter breda), egen KANAL-sida (sida 9), femte rad i kanalväljaren och i LÅTEN, ett torn till i mixerscenen och en egen scen på bildskärmen (skorstenar och dimbankar som driver tätare ju högre Dimman spelar). Dimmans parametrar (24 st, `km_di_*`) ligger sist; i låttexten heter kanalen `di`, och raderna packas i bit 47–53, så äldre låtar läses som förut. Ljudbanken har en fjärde typ, Dimman. Tre nya fabriksprogram läggs sist:* Dimbank 96 *(Industri, drönmaskinen på Gjuteriets metall),* Kalla salar 112 *(New Beat, körmattor) och* Skiftbyte 124 *(EBM, syntmattan). Mätt: de tre lägena är rena (topp 0,49–0,59, RMS −19 till −22 dB), drönet flyttar exakt en kvint (700,0 cent) och tystnar när sekvensern stannar, Rast sänker Dimmans E med −50,0 cent. Godkänd 11 november 2026.*
+- *MIDI ut från Taktverket (11 november 2026). Pluginet skickar MIDI (`NEEDS_MIDI_OUTPUT`, `producesMidi`). Parametern* MIDI ut *(Av, Med ljudet, Bara MIDI) ligger sist och hör till uppkopplingen (presets ändrar den inte). Tonerna går ut på MIDI-spels kanaler: 1 Kolvbasen, 2 Kolvbas 2, 3 Hugget, 4 Dimman, 10 Stampverket (GM). Anslag 127 för accent, 91 annars. Hugget och Dimman skickar grundtonen (ackordminnet hör till ljudet). Basarnas glid och drönet går ut som legato; trummorna släpps efter en halv sextondel; allt släpps vid stopp, hopp och när MIDI ut slås av. Kanaler som är tysta (Tyst, solo, låtens tystnad) skickar inget; Bara MIDI tystar de sekvenserade kanalerna men inte dem som spelas från MIDI. Inkommande MIDI ekas inte. I skivspelarläget flyttas händelserna till blockets tid. Ingen MIDI-klocka (VST3 kan inte skicka den från ett plugin). Mätt: tonerna ligger exakt på stegen (0 sampel), inga toner hänger.*
 - *STOPP fjädrar ned när man trycker på den, som SPOLA (önskemål 4 november 2026).*
 - *Testverktygen följer Ljudwerks styrdokument (6 november 2026): `KMRender --test`, `KMSnapshot --klicktest`, `--prestanda` och `--manual`; de gamla lägena finns kvar. Nya standardkontroller: stämning i cent i tre lägen, klick (tyst och solo mitt i en ton, röststöld, upprepad ton, programbyte) och CPU. Klicktestet hittade att Klämmans sidokedja följde bastrummans måltal i stället för den glidande nivån, så att tyst och solo kunde knäppa i pumpen; rättat.*
+- *Mätvärden (11 november 2026, med MIDI ut): `KMRender --test` 178 kontroller, alla går igenom. `KMSnapshot --klicktest`: 235 reglage, 240 parametrar nås från panelen, 10 575 klick utan fel. pluginval nivå 5 går igenom.*
+- *Mätvärden (8 november 2026, med Dimman): `KMRender --test` 173 kontroller, alla går igenom. `KMSnapshot --klicktest`: 235 reglage ändrar var och en bara sin egen parameter, 239 parametrar nås från panelen, 10 575 klick utan fel. pluginval nivå 5 går igenom.*
 - *Mätvärden (6 november 2026): `KMRender --test` 160 kontroller, alla går igenom. `KMSnapshot --klicktest`: 212 reglage ändrar var och en bara sin egen parameter, 216 parametrar nås från panelen, 8 244 klick utan fel, låtvyns åtta klick. CPU i molnmaskinen (Xeon): hela maskinen med* Stålverket 128 *4 % av en kärna, med Gjuteriet, Spänningen i topp, slitet band och ren stämning också 4 % (mål under 25 %). Att mäta på M1.*
+
+*Förslag (11 november 2026), ur Analogens genomgång av vart ljuden i den tidiga EBM:en hör hemma (Mikkes fråga om
+de tidiga Front 242, ungefär 1981–84 – en måttstock som redan står i §1; inga artist-, låt- eller skivnamn i det vi
+gör). Tyngdpunkten i det ljudet är sekvenserad analog bas och hårda, torra trummaskiner – Kroppsmaskinens kärna.
+Det som ligger runt hör till syskonen: MS-20-skriket och råa monoleads till Analogen (finns delvis: Skrikhalsen,
+Synkskriket, Atomkärnan, Stålpressen), radiorösterna och klippen till Montaget, den förvrängda sången till
+Röstverket, industrieffekterna till Pannrummet och de kalla digitala basarna på lite senare skivor till Digitalen.
+Inget är beslutat för Kroppsmaskinen – tas upp efter grind 4, eller som en del av fas 5 om Mikke beslutar det.*
+
+- **En grupp i fabriksbandet, "Tidig EBM", 6–8 presets med mönster** (sist, så att presetnumren står kvar):
+  - *Två låsta basar:* Kolvbasen rå och mörk, Kolvbas 2 med *Följ Kolvbasen* en sextondel efter och en oktav
+    upp – det klassiska dubbla basgreppet. Sågtand och puls, kort filterenvelopp, accent på ettorna, lite glid.
+  - *Torra trummaskiner:* ett kit som är tunnare och torrare än Åttaåtta – hård, kort bastrumma, en virvel med
+    brus och kort gatad reverb, metalliska hi-hats, handklapp; inga långa rum.
+  - *Stötar i moll:* Hugget med Blåsstöt och Orkesterstöt på enfingersackord, och en resonant synklead.
+  - *Tempo 112–124 BPM*, raka sextondelar, få toner – det kala, mekaniska i början av decenniet; Kassetten på
+    lite slitage.
+- **Kandidat till en senare fas: ett MS-20-läge i Kolvbasen** – högpass och lågpass i serie, båda med resonans
+  som skriker och mättas när den drivs (Kolvbasen har i dag 24 dB-stegen och 12 dB state variable). Nya
+  parametrar läggs sist; 1.0-ljuden ska låta som förut (testas sampel för sampel). Analogens högpass
+  (`krang-libs`, `Hogpass.h`) och diodstege kan vara utgångspunkter – Kroppsmaskinen har egna kopior av
+  krang-libs-filerna tills vidare (se krang-libs README).
+- Testfall: nivåfönstret, presetnumren oförändrade, mönstren och låtläget laddas; klicktestet. Lyssning: A/B mot
+  fabriksbandets EBM-presets, så att den tidiga gruppen låter kalare och torrare.
 
 ## 6. Risker
 
@@ -292,6 +320,7 @@ Varje fas slutar med en **grind**: ett lyssnings- eller granskningstest som mås
 - **16 stegknappar med sidbyte** (sidorna I–IV, upp till 64 steg). EBM- och New Beat-mönster är nästan alltid en takt sextondelar, så en takt syns i sin helhet utan att bläddra. 16 knappar i fyra grupper om fyra är dessutom 808/909-greppet som genren byggdes på, och knapparna blir tillräckligt stora för att träffa även vid 60 % skala. Fyra sidlampor visar vilken sida som spelas och vilken som redigeras; läget **Följ** låter redigeringssidan hänga med uppspelningen.
 - **Låtläget är en låt med rader** (som 909:ans), inte kedjor per kanal. Demolåtarna styrs av låtläget, inte av automation.
 - **Signering och notarisering skjuts upp** till efter grind 4.
+- **Den femte kanalen heter Dimman**, spelar mönster eller drön och har lägena Syntmatta, Kör och Drönmaskin (beslut 8 november 2026).
 - **Ropet stryks; vokoder och talmaskin hör till Röstverket RV-83** (beslut 6 november 2026).
 - **Fas 5 börjar före grind 4** (beslut 3 november 2026): det finns inga externa testare än. Pads och drön blir en femte kanal, metallen ett femte kit (Gjuteriet), stämningen global med Scala-filer.
 - **MIDI-läget hör till uppkopplingen, inte till presetet.** ALLT FRÅN MIDI, kanalernas MIDI-spel och SPELA behålls när presets byts (beslut 3 november 2026).

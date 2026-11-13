@@ -93,10 +93,17 @@ void KroppsmaskinenProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     // varvtal. Motorn räknar fram färre sampel som sträcks ut. Med DAW-transport blir det musikaliskt läge
     // i stället, så att tempot följer projektet.
     const double f = reader.varvFaktorNu;
-    if (reader.varvLageNu == km::VarvLage::Skivspelare && f < 0.999 && ! transport.hostSpelar)
+    const bool skiva = reader.varvLageNu == km::VarvLage::Skivspelare && f < 0.999 && ! transport.hostSpelar;
+    if (skiva)
         skivspelare (left, right, n, midi, transport, f);
     else
         motor.process (left, right, n, midi, transport, egenKlocka(), banker);
+
+    // MIDI ut: bufferten bär nu bara det sekvensern skickar (inkommande MIDI ekas inte tillbaka). I
+    // skivspelarläget räknade motorn i sin långsammare tid, så händelserna flyttas tillbaka till blockets.
+    midi.clear();
+    for (const auto meta : motor.getUtMidi())
+        midi.addEvent (meta.getMessage(), juce::jlimit (0, n - 1, skiva ? (int) (meta.samplePosition / f) : meta.samplePosition));
 
     if (buffer.getNumChannels() == 1)   // monobuss: summera
         for (int i = 0; i < n; ++i) left[i] = 0.5f * (left[i] + right[i]);

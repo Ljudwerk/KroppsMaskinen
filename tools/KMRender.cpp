@@ -49,6 +49,8 @@
 //   25. Stämning i cent: Kolvbasen och Hugget i bas, mellanläge och diskant (±3 cent).
 //   26. Klick: tyst och solo mitt i en ton, röststöld i Hugget, upprepad ton och programbyte medan sekvensern går.
 //   27. CPU: hela maskinen med allt igång under 25 % av en kärna.
+//   28. Dimman: tre lägen, drönläget, mönster i låten och stämningen.
+//   29. MIDI ut: av, med ljudet (kanaler, stegen, släpp), bara MIDI, tysta kanaler, Hugget, drönet och glid.
 //
 // Grind 0-loopen hamnar i renders/grind0_kolv125.wav, grind 1-looparna i renders/grind1_*.wav.
 //
@@ -793,7 +795,7 @@ void testaLaten()
     using namespace km::params;
     {
         km::Laten l;
-        const juce::String text ("4 kb=1A kb2=2B sv=3AB hu=16A tyst=kb2,hu sp=50 tr=+5; 1 kb=1A kb2=1A sv=1A hu=1A");
+        const juce::String text ("4 kb=1A kb2=2B sv=3AB hu=16A di=2B tyst=kb2,hu,di sp=50 tr=+5; 1 kb=1A kb2=1A sv=1A hu=1A di=1A");
         l.fromString (text);
         kontroll (l.antal() == 2 && l.toString() == text && l.totalaTakter() == 5 && l.plats (4, true).rad == 1 && l.plats (5, false).rad < 0
                   && l.plats (6, true).rad == 0 && l.plats (6, true).taktIRad == 1,
@@ -892,9 +894,10 @@ void testaLjudbanken()
     {
         auto p = nyProcessor();
         const auto& l = p->ljud;
-        kontroll (l.lista (km::LjudTyp::Bas).size() > 10 && l.lista (km::LjudTyp::Trummor).size() > 10 && l.lista (km::LjudTyp::Hugget).size() > 10,
+        kontroll (l.lista (km::LjudTyp::Bas).size() > 10 && l.lista (km::LjudTyp::Trummor).size() > 10 && l.lista (km::LjudTyp::Hugget).size() > 10 && l.lista (km::LjudTyp::Dimman).size() >= 4,
                   juce::String ((int) l.lista (km::LjudTyp::Bas).size()) + " basljud, " + juce::String ((int) l.lista (km::LjudTyp::Trummor).size())
-                  + " trumljud, " + juce::String ((int) l.lista (km::LjudTyp::Hugget).size()) + juce::String::fromUTF8 (" ljud för Hugget"));
+                  + " trumljud, " + juce::String ((int) l.lista (km::LjudTyp::Hugget).size()) + juce::String::fromUTF8 (" ljud för Hugget, ")
+                  + juce::String ((int) l.lista (km::LjudTyp::Dimman).size()) + juce::String::fromUTF8 (" för Dimman"));
     }
     // Ett basljud på Kolvbasen: bara Kolvbasens klang ändras.
     {
@@ -915,15 +918,16 @@ void testaLjudbanken()
     float vartTopp = 0.0f;
     bool rena = true;
     juce::String tystaNamn;
-    for (int t = 0; t < 3; ++t)
+    for (int t = 0; t < km::Ljudbanken::antalTyper; ++t)
     {
-        const int kanal = t == 0 ? 0 : (t == 1 ? (int) km::Kanal::Stampverket : (int) km::Kanal::Hugget);
+        const int kanal = t == 0 ? 0 : (t == 1 ? (int) km::Kanal::Stampverket : (t == 2 ? (int) km::Kanal::Hugget : (int) km::Kanal::Dimman));
         const auto n = (int) nyProcessor()->ljud.lista ((km::LjudTyp) t).size();
         for (int i = 0; i < n; ++i)
         {
             auto p = nyProcessor();
             p->presets.loadByName ("Kolv 125");
             p->banker.hugget.get (0, 0).fromString ("0a . . . 0 . . 3 . . 0 . -2 . . .");
+            p->banker.dimman.get (0, 0).fromString ("0~ . . . . . . . -2~ . . . . . . .");
             p->ljud.ladda (kanal, i);
             for (int k = 0; k < km::antalKanaler; ++k) satt (*p, id::kanal (k, "solo"), k == kanal ? 1.0f : 0.0f);
             satt (*p, id::spela, 1.0f);
@@ -1377,6 +1381,215 @@ void testaCpu()
                                              + juce::String (tyngst, 1) + juce::String::fromUTF8 (" % (mål under 25 %)"));
 }
 
+
+void testaDimman (const juce::File& katalog)
+{
+    std::cout << "28. Dimman\n";
+    using namespace km::params;
+    const int D = (int) km::Kanal::Dimman;
+    // Varje läge med moll-ackord från MIDI-kanal 4: rent, hörbart, tyst efter släpp.
+    const char* lagen[] { "syntmatta", "kor", "dronmaskin" };
+    for (int lage = 0; lage < km::antalDimmaLagen; ++lage)
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Init");
+        satt (*p, id::kanal (D, "midi"), 1.0f);
+        satt (*p, id::di ("lage"), (float) lage);
+        satt (*p, id::di ("ackord"), 1.0f);
+        satt (*p, id::di ("vokal"), 0.5f);
+        auto ut = rendera (*p, 6.0, ton (4, 57, 3.0, 0.05));
+        const auto hela = mat (ut), slut = mat (ut, ut.getNumSamples() - (int) (0.3 * sr));
+        kontroll (hela.finit && hela.topp <= 1.0f && hela.rms > 0.01 && std::abs (hela.medel) < 0.01 && slut.topp < 1.0e-3f,
+                  juce::String::fromUTF8 ("Dimman ") + lagen[lage] + ": topp " + juce::String (hela.topp, 3) + ", RMS " + juce::String (dB (hela.rms), 1)
+                  + " dB, slut " + juce::String (slut.topp, 5));
+        skrivWav (ut, katalog.getChildFile (juce::String ("dimman_") + lagen[lage] + ".wav"));
+    }
+    // Drönläget: håller medan sekvensern går, flyttas med transponeringen, släpps när sekvensern stannar.
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Init");
+        for (int k = 0; k < km::antalKanaler; ++k) satt (*p, id::kanal (k, "solo"), k == D ? 1.0f : 0.0f);
+        satt (*p, id::di ("dron"), 1.0f);
+        satt (*p, id::di ("attack"), 0.05f);
+        satt (*p, id::di ("slapp"), 0.3f);
+        satt (*p, id::spela, 1.0f);
+        const auto gar = rendera (*p, 2.0);
+        const double f0 = tonhojdNara (gar, 1.2, 440.0 * std::exp2 ((33 + 24 - 69) / 12.0));
+        // Transponering från MIDI-kanal 1 (sekvensern går): drönet flyttar upp en kvint.
+        auto upp = rendera (*p, 2.0, ton (1, 33 + 7, 0.2, 0.0));
+        const double f1 = tonhojdNara (upp, 1.2, 440.0 * std::exp2 ((33 + 24 + 7 - 69) / 12.0));
+        satt (*p, id::spela, 0.0f);
+        const auto stilla = rendera (*p, 3.0);
+        const double kvint = 1200.0 * std::log2 (f1 / f0);
+        kontroll (mat (gar, (int) (0.5 * sr)).rms > 0.005 && std::abs (kvint - 700.0) < 5.0 && mat (stilla, (int) (2.0 * sr)).topp < 1.0e-3f,
+                  juce::String::fromUTF8 ("drönläget: ") + juce::String (f0, 1) + " Hz, transponerat " + juce::String (kvint, 1)
+                  + juce::String::fromUTF8 (" cent, tyst när sekvensern stannat"));
+    }
+    // Mönstret: ett hållet ackord på steg 1 låter, och låtens tystnad för Dimman tystar.
+    {
+        auto spela = [] (bool tystIRaden)
+        {
+            auto p = nyProcessor();
+            p->presets.loadByName ("Init");
+            p->banker.dimman.get (0, 0).fromString ("0a~ . . . . . . . . . . . . . . .");
+            p->banker.laten.fromString (tystIRaden ? "4 di=1A tyst=kb,kb2,sv,hu,di" : "4 di=1A tyst=kb,kb2,sv,hu");
+            satt (*p, id::latLage, 1.0f);
+            satt (*p, id::spela, 1.0f);
+            const auto b = rendera (*p, 2.0);
+            return mat (b, (int) (0.5 * sr)).rms;
+        };
+        const double lat = spela (false), tyst = spela (true);
+        kontroll (lat > 0.005 && tyst < 1.0e-4, juce::String::fromUTF8 ("mönster i låten: ") + juce::String (dB (lat), 1)
+                                                  + juce::String::fromUTF8 (" dB, tyst på raden ") + juce::String (dB (tyst), 1) + " dB");
+    }
+    // Stämningen gäller Dimman också: Rast på C sänker E en kvartston (en ton, inget ackord, syntmattans
+    // grundton mäts på fyrkanten en oktav ned).
+    {
+        auto hojd = [] (int stamning)
+        {
+            auto p = nyProcessor();
+            p->presets.loadByName ("Init");
+            satt (*p, id::kanal ((int) km::Kanal::Dimman, "midi"), 1.0f);
+            satt (*p, id::di ("bredd"), 0.0f);
+            satt (*p, id::di ("rorelse"), 0.0f);
+            satt (*p, id::di ("ensemble"), 0.0f);
+            satt (*p, id::stamning, (float) stamning);
+            satt (*p, id::stamningTon, 1.0f);
+            const auto b = rendera (*p, 1.5, ton (4, 52, 1.2, 0.05));
+            return tonhojdNara (b, 0.7, 440.0 * std::exp2 ((52 - 12 - 69) / 12.0) * (stamning == 0 ? 1.0 : 0.9715));
+        };
+        const double lik = hojd (0), rast = hojd ((int) km::StamningTyp::Rast);
+        const double cent = 1200.0 * std::log2 (rast / lik);
+        kontroll (std::abs (cent + 50.0) < 3.0, juce::String::fromUTF8 ("Dimman i Rast: E ") + juce::String (cent, 1) + " cent");
+    }
+}
+
+
+// Renderar och samlar det pluginet skickar ut som MIDI (position i sampel från start).
+struct UtHandelse { int pos; juce::MidiMessage m; };
+std::vector<UtHandelse> renderaMidiUt (KroppsmaskinenProcessor& p, double sekunder, juce::AudioBuffer<float>* ljud = nullptr,
+                                      std::function<void (int pos)> fore = {})
+{
+    std::vector<UtHandelse> ut;
+    const int total = (int) (sekunder * sr);
+    juce::AudioBuffer<float> buf (2, block);
+    if (ljud != nullptr) ljud->setSize (2, total);
+    juce::MidiBuffer m;
+    for (int pos = 0; pos < total; pos += block)
+    {
+        const int n = juce::jmin (block, total - pos);
+        buf.setSize (2, n, false, false, true);
+        m.clear();
+        if (fore) fore (pos);
+        p.processBlock (buf, m);
+        for (const auto meta : m) ut.push_back ({ pos + meta.samplePosition, meta.getMessage() });
+        if (ljud != nullptr) for (int c = 0; c < 2; ++c) ljud->copyFrom (c, pos, buf, c, 0, n);
+    }
+    return ut;
+}
+
+void testaMidiUt()
+{
+    std::cout << "29. MIDI ut\n";
+    using namespace km::params;
+    const double steg = sr * 60.0 / 125.0 / 4.0;   // en sextondel i 125 BPM
+    // Av: inget går ut.
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Kolv 125");
+        satt (*p, id::spela, 1.0f);
+        const auto ut = renderaMidiUt (*p, 2.0);
+        kontroll (ut.empty(), juce::String::fromUTF8 ("MIDI ut av: ") + juce::String ((int) ut.size()) + juce::String::fromUTF8 (" händelser"));
+    }
+    // Med ljudet: Kolv 125 – basen på kanal 1, trummorna på kanal 10 (GM), på stegen, och varje ton släpps.
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Kolv 125");
+        satt (*p, id::midiUt, 1.0f);
+        satt (*p, id::spela, 1.0f);
+        juce::AudioBuffer<float> ljud;
+        auto ut = renderaMidiUt (*p, 1.92, &ljud);   // en takt i 125 BPM
+        satt (*p, id::spela, 0.0f);
+        const auto efter = renderaMidiUt (*p, 0.2);
+        int bas = 0, bastrumma = 0, vart = 0, andra = 0;
+        std::map<std::pair<int, int>, int> pa;
+        for (const auto& u : ut)
+        {
+            if (u.m.isNoteOn())
+            {
+                ++pa[{ u.m.getChannel(), u.m.getNoteNumber() }];
+                const double rest = std::fmod ((double) u.pos, steg);
+                vart = juce::jmax (vart, (int) std::min (rest, steg - rest));
+                if (u.m.getChannel() == 1) ++bas;
+                else if (u.m.getChannel() == 10 && u.m.getNoteNumber() == 36) ++bastrumma;
+                else if (u.m.getChannel() != 10) ++andra;
+            }
+            else if (u.m.isNoteOff()) --pa[{ u.m.getChannel(), u.m.getNoteNumber() }];
+        }
+        for (const auto& u : efter) if (u.m.isNoteOff()) --pa[{ u.m.getChannel(), u.m.getNoteNumber() }];
+        int hangande = 0;
+        for (const auto& [k, v] : pa) hangande += std::abs (v);
+        kontroll (bas == 16 && bastrumma == 4 && andra == 0 && vart <= 1 && hangande == 0 && mat (ljud).rms > 0.01,
+                  juce::String::fromUTF8 ("med ljudet: ") + juce::String (bas) + juce::String::fromUTF8 (" bastoner på kanal 1, ") + juce::String (bastrumma)
+                  + juce::String::fromUTF8 (" bastrummor (36) på kanal 10, största avvikelse från stegen ") + juce::String (vart)
+                  + juce::String::fromUTF8 (" sampel, ") + juce::String (hangande) + juce::String::fromUTF8 (" toner som inte släpptes"));
+    }
+    // Bara MIDI: ljudet tystnar men tonerna går ut; en tyst kanal skickar inget.
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Kolv 125");
+        satt (*p, id::midiUt, 2.0f);
+        satt (*p, id::kanal (2, "tyst"), 1.0f);
+        satt (*p, id::spela, 1.0f);
+        juce::AudioBuffer<float> ljud;
+        const auto ut = renderaMidiUt (*p, 1.0, &ljud);
+        int bas = 0, trummor = 0;
+        for (const auto& u : ut) if (u.m.isNoteOn()) (u.m.getChannel() == 10 ? trummor : bas)++;
+        const auto m = mat (ljud, (int) (0.2 * sr));
+        kontroll (bas > 0 && trummor == 0 && m.rms < 1.0e-3, juce::String::fromUTF8 ("bara MIDI: ") + juce::String (bas) + juce::String::fromUTF8 (" bastoner ut, ljudet ")
+                  + juce::String (dB (m.rms), 1) + juce::String::fromUTF8 (" dB, tyst Stampverket skickar ") + juce::String (trummor));
+    }
+    // Hugget och Dimman: grundtonen på kanal 3 och 4; drönet hålls och släpps när sekvensern stannar.
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Init");
+        p->banker.hugget.get (0, 0).fromString ("0a . . . . . . . 7 . . . . . . .");
+        satt (*p, id::hu ("ackord"), 1.0f);
+        satt (*p, id::di ("dron"), 2.0f);
+        satt (*p, id::di ("ackord"), 1.0f);
+        satt (*p, id::midiUt, 1.0f);
+        satt (*p, id::spela, 1.0f);
+        const auto ut = renderaMidiUt (*p, 1.92);
+        satt (*p, id::spela, 0.0f);
+        const auto efter = renderaMidiUt (*p, 0.2);
+        int hu = 0, di = 0, diAv = 0;
+        for (const auto& u : ut) if (u.m.isNoteOn()) { if (u.m.getChannel() == 3) ++hu; if (u.m.getChannel() == 4) ++di; }
+        for (const auto& u : efter) if (u.m.isNoteOff() && u.m.getChannel() == 4) ++diAv;
+        kontroll (hu == 2 && di == 1 && diAv == 1, juce::String::fromUTF8 ("Hugget ") + juce::String (hu) + juce::String::fromUTF8 (" toner på kanal 3 (grundtonen, inte ackordet), Dimmans drön ")
+                  + juce::String (di) + juce::String::fromUTF8 (" ton på kanal 4, släppt vid stopp: ") + juce::String (diAv));
+    }
+    // Glid: den nya tonen slås an innan den gamla släpps (legato).
+    {
+        auto p = nyProcessor();
+        p->presets.loadByName ("Init");
+        p->banker.kolvbasen.get (0, 0).fromString ("0~ 3 . . . . . . . . . . . . . .");
+        p->banker.trummor.rensa();
+        satt (*p, id::midiUt, 1.0f);
+        satt (*p, id::spela, 1.0f);
+        const auto ut = renderaMidiUt (*p, 0.3);
+        int ordning = 0;   // 1: på 45, 2: på 48 före av 45
+        int paNy = -1, avGammal = -1;
+        for (size_t i = 0; i < ut.size(); ++i)
+        {
+            const auto& m = ut[i].m;
+            if (m.isNoteOn() && m.getNoteNumber() == 33 + 3) paNy = (int) i;
+            if (m.isNoteOff() && m.getNoteNumber() == 33 && avGammal < 0) avGammal = (int) i;
+        }
+        ordning = paNy >= 0 && avGammal > paNy ? 1 : 0;
+        kontroll (ordning == 1, juce::String::fromUTF8 ("glid: ny ton före den gamlas släpp (legato) – ") + (ordning == 1 ? "ja" : "nej"));
+    }
+}
+
 } // namespace
 
 // --trummor katalog [kit]: varje trumma i varje kit (eller ett kit, 1–5) för sig, 2,5 s, som WAV.
@@ -1683,6 +1896,8 @@ int main (int argc, char* argv[])
     testaStamningICent();
     testaKlick();
     testaCpu();
+    testaDimman (katalog);
+    testaMidiUt();
 
     std::cout << "\n" << antalKontroller << " kontroller, ";
     std::cout << (fel == 0 ? juce::String::fromUTF8 ("alla går igenom.\n") : juce::String (fel) + juce::String::fromUTF8 (" går inte igenom.\n"));

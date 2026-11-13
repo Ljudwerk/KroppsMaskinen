@@ -21,7 +21,9 @@ public:
     explicit LatVy (PanelLage& l) : lage (l) { setOpaque (true); }
 
     static constexpr float etikettB = 84.0f;
-    static constexpr int antalRaderIVy = 8;   // rubrik, takter, fyra kanaler, Spänningen, transponering
+    static constexpr int antalRaderIVy = 4 + antalKanaler;   // rubrik, takter, kanalerna, Spänningen, transponering
+    static constexpr int spanRad = 2 + antalKanaler, transpRad = 3 + antalKanaler;
+    static bool kanalRad (int iv) { return iv >= 2 && iv < 2 + antalKanaler; }
     int valdRad = 0;
     int sida = 0;                             // 0..3, sexton rader per sida
 
@@ -35,10 +37,10 @@ public:
         const int n = laten().antal();
         const int spelar = lage.proc.latRad();
         const float cw = cellB(), rh = radH();
-        static const char* etiketter[antalRaderIVy] { "RAD", "TAKTER", "KOLVB.", "KOLVB. 2", "STAMPV.", "HUGGET", "", "TRANSP." };
+        static const char* etiketter[antalRaderIVy] { "RAD", "TAKTER", "KOLVB.", "KOLVB. 2", "STAMPV.", "HUGGET", "DIMMAN", "", "TRANSP." };
         for (int i = 0; i < antalRaderIVy; ++i)
         {
-            const juce::String t = i == 6 ? stil::sv ("SPÄNN.") : juce::String (etiketter[i]);
+            const juce::String t = i == spanRad ? stil::sv ("SPÄNN.") : juce::String (etiketter[i]);
             etikett (g, t, { 4.0f, (float) i * rh, etikettB - 8.0f, rh }, juce::jmin (6.0f, rh * 0.42f), i == 0 ? farg::silver : farg::silverMatt,
                      juce::Justification::centredLeft);
         }
@@ -75,10 +77,10 @@ public:
                 etikett (g, tyst ? juce::String ("TYST") : juce::String (lr.monster[(size_t) k] + 1) + v, ce, h,
                          tyst ? farg::silverMatt : farg::lysRod.brighter (0.3f));
             }
-            etikett (g, lr.spanning < 0 ? stil::sv ("–") : juce::String (lr.spanning) + "%", cell (6), h, lr.spanning < 0 ? farg::silverMatt : farg::tryckRott);
+            etikett (g, lr.spanning < 0 ? stil::sv ("–") : juce::String (lr.spanning) + "%", cell (spanRad), h, lr.spanning < 0 ? farg::silverMatt : farg::tryckRott);
             etikett (g, lr.transponering == 0 ? juce::String ("0")
                                               : (lr.transponering > 0 ? "+" + juce::String (lr.transponering) : stil::sv ("−") + juce::String (-lr.transponering)),
-                     cell (7), h, lr.transponering == 0 ? farg::silverMatt : farg::silver);
+                     cell (transpRad), h, lr.transponering == 0 ? farg::silverMatt : farg::silver);
         }
         g.setColour (juce::Colours::white.withAlpha (0.08f));
         g.drawRect (r, 1.0f);
@@ -110,7 +112,7 @@ public:
         cellRadIVy = radVid (p.y);
         startY = p.y;
         startVarde = varde (laten().get (rad), cellRadIVy);
-        if (e.mods.isPopupMenu() && cellRadIVy >= 2 && cellRadIVy <= 5)
+        if (e.mods.isPopupMenu() && kanalRad (cellRadIVy))
         {
             auto lr = laten().get (rad);
             lr.tyst[(size_t) (cellRadIVy - 2)] = ! lr.tyst[(size_t) (cellRadIVy - 2)];
@@ -133,12 +135,12 @@ public:
     {
         // Takter, Spänningen och transponeringen: klick = ett steg upp, högerklick (eller Alt-klick) = ett
         // steg ned. Andra klicket i ett dubbelklick räknas inte (dubbelklicket nollställer).
-        if (cellRad >= 0 && ! drog && (cellRadIVy == 1 || cellRadIVy >= 6) && e.getNumberOfClicks() < 2)
+        if (cellRad >= 0 && ! drog && (cellRadIVy == 1 || cellRadIVy >= spanRad) && e.getNumberOfClicks() < 2)
         {
             const int r = e.mods.isPopupMenu() || e.mods.isAltDown() ? -1 : 1;
-            sattVarde (cellRad, cellRadIVy, startVarde + r * (cellRadIVy == 6 ? 10 : 1));
+            sattVarde (cellRad, cellRadIVy, startVarde + r * (cellRadIVy == spanRad ? 10 : 1));
         }
-        if (cellRad >= 0 && ! drog && ! e.mods.isPopupMenu() && cellRadIVy >= 2 && cellRadIVy <= 5)
+        if (cellRad >= 0 && ! drog && ! e.mods.isPopupMenu() && kanalRad (cellRadIVy))
         {
             auto lr = laten().get (cellRad);
             auto& v = lr.variant[(size_t) (cellRadIVy - 2)];
@@ -152,13 +154,13 @@ public:
     void mouseDoubleClick (const juce::MouseEvent& e) override
     {
         const int iv = radVid (e.position.y);
-        if (e.position.x < etikettB || iv < 1 || (iv >= 2 && iv <= 5)) return;
+        if (e.position.x < etikettB || iv < 1 || kanalRad (iv)) return;
         const int rad = sida * 16 + juce::jlimit (0, 15, (int) ((e.position.x - etikettB) / cellB()));
         if (rad >= laten().antal()) return;
         auto lr = laten().get (rad);
         if (iv == 1) lr.takter = 4;
-        if (iv == 6) lr.spanning = -1;
-        if (iv == 7) lr.transponering = 0;
+        if (iv == spanRad) lr.spanning = -1;
+        if (iv == transpRad) lr.transponering = 0;
         laten().set (rad, lr);
         andrat();
     }
@@ -211,20 +213,20 @@ private:
     static int varde (const LatRad& r, int iv)
     {
         if (iv == 1) return r.takter;
-        if (iv >= 2 && iv <= 5) return r.monster[(size_t) (iv - 2)];
-        if (iv == 6) return r.spanning;
-        if (iv == 7) return r.transponering;
+        if (kanalRad (iv)) return r.monster[(size_t) (iv - 2)];
+        if (iv == spanRad) return r.spanning;
+        if (iv == transpRad) return r.transponering;
         return 0;
     }
-    static int steg (int iv) { return iv == 6 ? 5 : 1; }
+    static int steg (int iv) { return iv == spanRad ? 5 : 1; }
 
     void sattVarde (int rad, int iv, int v)
     {
         auto lr = laten().get (rad);
         if (iv == 1) lr.takter = juce::jlimit (1, 64, v);
-        else if (iv >= 2 && iv <= 5) lr.monster[(size_t) (iv - 2)] = juce::jlimit (0, antalMonster - 1, v);
-        else if (iv == 6) lr.spanning = juce::jlimit (-1, 100, v < 0 && lr.spanning >= 0 ? -1 : (lr.spanning < 0 && v >= 0 ? 0 : v));
-        else if (iv == 7) lr.transponering = juce::jlimit (-24, 24, v);
+        else if (kanalRad (iv)) lr.monster[(size_t) (iv - 2)] = juce::jlimit (0, antalMonster - 1, v);
+        else if (iv == spanRad) lr.spanning = juce::jlimit (-1, 100, v < 0 && lr.spanning >= 0 ? -1 : (lr.spanning < 0 && v >= 0 ? 0 : v));
+        else if (iv == transpRad) lr.transponering = juce::jlimit (-24, 24, v);
         else return;
         laten().set (rad, lr);
         andrat();

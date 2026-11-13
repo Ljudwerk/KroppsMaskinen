@@ -19,7 +19,7 @@ Innehåll:
 
 ## 1. Hur maskinen tänker
 
-Kroppsmaskinen har fyra **kanaler** som spelas av en gemensam sekvenser:
+Kroppsmaskinen har fem **kanaler** som spelas av en gemensam sekvenser:
 
 | Kanal | Vad | Mönstertyp |
 | --- | --- | --- |
@@ -27,10 +27,11 @@ Kroppsmaskinen har fyra **kanaler** som spelas av en gemensam sekvenser:
 | 2 **Kolvbas 2** | Andra basen – eget mönster eller *Följ Kolvbasen* | Tonmönster |
 | 3 **Stampverket** | Tolv trummor | Trummönster (tolv spår) |
 | 4 **Hugget** | Stötar och leads (åtta röster, ackordminne) | Tonmönster |
+| 5 **Dimman** | Mattor och drön (tolv röster, ackordminne, drönläge) | Tonmönster, eller drönet |
 
 Varje kanal har **16 mönster**, och varje mönster har två **varianter**, **A** och **B**. Ett mönster är upp till 64 steg (sextondelar), fyra sidor om 16 (I–IV). Kanalens **Variant** bestämmer vad som spelas: *A*, *B* eller *A+B* (A och B växlar varje varv).
 
-En **låt** är en lista med upp till 64 **rader**. Varje rad säger, för alla fyra kanalerna på en gång: vilket mönster och vilken variant som spelas, vilka kanaler som är tysta, hur många takter raden varar – och valfritt hur högt Spänningen står och om tonkanalerna ska transponeras. Med **LÅTLÄGET** på spelar maskinen raderna i tur och ordning, takt för takt.
+En **låt** är en lista med upp till 64 **rader**. Varje rad säger, för alla fem kanalerna på en gång: vilket mönster och vilken variant som spelas, vilka kanaler som är tysta, hur många takter raden varar – och valfritt hur högt Spänningen står och om tonkanalerna ska transponeras. Med **LÅTLÄGET** på spelar maskinen raderna i tur och ordning, takt för takt.
 
 Arbetsgången blir alltså: först ljuden och mönstren (delarna), sedan låten (ordningen).
 
@@ -78,6 +79,12 @@ Tips: EBM-basen är nästan alltid sextondelar med accenter på taktslagen och e
 
 Samma sätt att skriva som basen. Välj läge och ackord i KANAL-vyn: med ackordminnet (t.ex. *Moll*) blir varje ton i mönstret ett helt ackord – en enda rad ger fulla stötar. Stötar sitter ofta glest: på 1 och "och" före 9, eller bara i refrängen.
 
+### Dimman (mattor och drön)
+
+Dimman spelar långa toner. Skriv ett ackord på första steget med glid (*~*), så hålls det till nästa ton: `0~ . . . . . . . . . . . . . . .` med Längd 32 och `-4~` på steg 17 ger två ackord som byter varannan takt. Med ackordminnet räcker en ton per ackord. Välj läge (*Syntmatta*, *Kör* eller *Drönmaskin*), **Attack** och **Släpp** (mattor vill ha långa), **Rörelse**, **Bredd**, **Vokal** (kören) och **Ensemble** i KANAL-vyn.
+
+**Drönläget** (*Drön*: *Grundton* eller *Ackord*) ersätter mönstret: Dimman håller grundtonen – eller ackordet – så länge sekvensern går, och flyttar med när du transponerar eller när en låtrad har **TRANSP.**. Bra för industri: en drönmaskin under hela låten, tystad på de rader där den inte ska höras.
+
 ### Stegskrivning från klaviaturen (SPELA IN)
 
 1. Tryck **SPELA IN** (den röda knappen i bandverket). Markören blinkar orange i stegraden.
@@ -124,9 +131,9 @@ Gå till **LÅTEN**. Överst: **LÅTLÄGET** (på/av), **Vid slutet** (*Loopa* e
 | --- | --- | --- |
 | RAD | Radens nummer; orange = raden som spelas | Klicka för att välja raden |
 | TAKTER | Hur många takter raden spelas (1–64) | Klick = +1, högerklick/Alt-klick = −1, dra eller rulla; dubbelklick = 4 |
-| KOLVB. / KOLVB. 2 / STAMPV. / HUGGET | Mönster och variant, t.ex. *3AB* = mönster 3, A+B | Dra eller rulla = mönster; klick = variant A → B → A+B; högerklick = tyst |
+| KOLVB. / KOLVB. 2 / STAMPV. / HUGGET / DIMMAN | Mönster och variant, t.ex. *3AB* = mönster 3, A+B | Dra eller rulla = mönster; klick = variant A → B → A+B; högerklick = tyst |
 | SPÄNN. | Spänningen för raden | Klick = +10 %, högerklick/Alt-klick = −10 % (under 0 blir det "–", rör inte spaken); dra eller rulla i steg om 5 %; dubbelklick = "–" |
-| TRANSP. | Transponering av Kolvbasen, Kolvbas 2 och Hugget | Klick = +1, högerklick/Alt-klick = −1, dra eller rulla (±24); dubbelklick = 0 |
+| TRANSP. | Transponering av Kolvbasen, Kolvbas 2, Hugget och Dimman (även drönet) | Klick = +1, högerklick/Alt-klick = −1, dra eller rulla (±24); dubbelklick = 0 |
 
 Klicka i rubrikkolumnen (eller rulla där) för att byta sida (1/4 … 4/4).
 

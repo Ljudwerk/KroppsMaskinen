@@ -269,9 +269,9 @@ private:
     uint64_t ritadSignatur = 0;
 
     scen::Rorelse rorelse;
-    std::array<uint32_t, 4> forraKanalSlag {};
+    std::array<uint32_t, antalKanaler> forraKanalSlag {};
     std::array<uint32_t, 12> forraTrumSlag {};
-    std::array<float, 5> toppTid {};
+    std::array<float, scen::antalTorn> toppTid {};
     float sedanSlag = 10.0f;
     int uppdateringar = 0;
 
@@ -297,7 +297,7 @@ private:
     Lager halv; uint64_t halvNyckel = ~0ull;
     std::array<std::array<Lager, vinklar>, 2> kolv;
     Lager fallvikt;
-    std::array<std::array<Lager, 2>, 5> torn;    // mixern: tänt torn, vitt torn (topphållning)
+    std::array<std::array<Lager, 2>, scen::antalTorn> torn;    // mixern: tänt torn, vitt torn (topphållning)
 
     float skalaOSD = 0.0f;
     std::array<OSDFalt, 4> osd;
@@ -350,9 +350,11 @@ private:
         m.fall = sedanSlag < halla ? 1.0f : std::exp (-(sedanSlag - halla) / upp);
 
         // Mixerns torn: snabb attack, fall 1,4 skala/s, topphållning 0,8 s.
-        for (size_t t = 0; t < 5; ++t)
+        m.dimFas += dt * (0.4f + 0.8f * m.dimNiva);
+        m.dimNiva = dbSkala (d.kanalNiva[(size_t) Kanal::Dimman]);
+        for (size_t t = 0; t < (size_t) scen::antalTorn; ++t)
         {
-            const float v = dbSkala (t < 4 ? d.kanalNiva[t] : d.niva);
+            const float v = dbSkala (t < (size_t) antalKanaler ? d.kanalNiva[t] : d.niva);
             m.niva[t] = juce::jmax (v, m.niva[t] - dt * 1.4f);
             if (v >= m.topp[t]) { m.topp[t] = v; toppTid[t] = 0.0f; }
             else if ((toppTid[t] += dt) > 0.8f) m.topp[t] = juce::jmax (0.0f, m.topp[t] - dt * 0.9f);
@@ -389,8 +391,9 @@ private:
         if (scen::harKolvar (sc)) mix ((uint64_t) kolvIndex (m.vev));
         if (scen::harFallvikt (sc)) { mix (q (m.fall, 48.0f)); mix (q (m.gnistor, 16.0f)); }
         if (sc == scen::Scen::Stampverket) for (auto p : m.pelare) mix (q (p, 40.0f));
-        if (sc == scen::Scen::Mixer) for (size_t t = 0; t < 5; ++t) { mix (q (m.niva[t], 12.0f)); mix (q (m.topp[t], 12.0f)); }
-        if (scen::harKolvar (sc) || sc == scen::Scen::Hugget || sc == scen::Scen::Effekter)
+        if (sc == scen::Scen::Mixer) for (size_t t = 0; t < (size_t) scen::antalTorn; ++t) { mix (q (m.niva[t], 12.0f)); mix (q (m.topp[t], 12.0f)); }
+        if (sc == scen::Scen::Dimman) { mix (q (m.dimFas, 20.0f)); mix (q (m.dimNiva, 16.0f)); }
+        if (scen::harKolvar (sc) || sc == scen::Scen::Hugget || sc == scen::Scen::Dimman || sc == scen::Scen::Effekter)
             for (size_t i = 0; i < d.scope.size(); i += 4) mix (q (d.scope[i], 64.0f));
         if (sc == scen::Scen::Effekter) for (auto& s : m.svep) for (size_t i = 0; i < s.size(); i += 4) mix (q (s[i], 64.0f));
         if (sc == scen::Scen::Modulation)
@@ -663,7 +666,7 @@ private:
     void ritaTornen (juce::Graphics& gk, juce::Rectangle<float> r)
     {
         auto snitt = [&] (int t, int seg) { return juce::roundToInt (scen::tornSnitt (r, t, seg) * sy); };
-        for (int t = 0; t < 5; ++t)
+        for (int t = 0; t < scen::antalTorn; ++t)
         {
             for (int v = 0; v < 2; ++v)
                 if (! torn[(size_t) t][(size_t) v].bild.isValid())

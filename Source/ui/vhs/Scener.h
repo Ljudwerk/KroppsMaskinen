@@ -40,8 +40,9 @@ namespace farg = km::stil::farg;
 namespace sk = km::stil::skarm;
 
 // Scenerna. Vy::Sekvens visar samma scen som Vy::Kanal (panelen visar rutnätet utanför skärmen).
-enum class Scen { Kolvbasen = 0, Kolvbas2, Stampverket, Hugget, Mixer, Effekter, Modulation };
-inline constexpr int antalScener = 7;
+enum class Scen { Kolvbasen = 0, Kolvbas2, Stampverket, Hugget, Mixer, Effekter, Modulation, Dimman };
+inline constexpr int antalScener = 8;
+inline constexpr int antalTorn = antalKanaler + 1;   // mixern: ett torn per kanal och mastern sist
 
 inline Scen scenFor (Vy vy, int kanal)
 {
@@ -54,18 +55,19 @@ inline Scen scenFor (Vy vy, int kanal)
         case Vy::Kanal:
         case Vy::Sekvens:    break;
     }
-    switch (juce::jlimit (0, 3, kanal))
+    switch (juce::jlimit (0, antalKanaler - 1, kanal))
     {
         case 1:  return Scen::Kolvbas2;
         case 2:  return Scen::Stampverket;
         case 3:  return Scen::Hugget;
+        case 4:  return Scen::Dimman;
         default: return Scen::Kolvbasen;
     }
 }
 
 inline bool harKolvar (Scen s)    { return s == Scen::Kolvbasen || s == Scen::Kolvbas2; }
 inline bool harFallvikt (Scen s)  { return s == Scen::Stampverket || s == Scen::Hugget; }
-inline bool harSteg (Scen s)      { return s == Scen::Kolvbasen || s == Scen::Kolvbas2 || s == Scen::Hugget; }
+inline bool harSteg (Scen s)      { return s == Scen::Kolvbasen || s == Scen::Kolvbas2 || s == Scen::Hugget || s == Scen::Dimman; }
 
 // Stampverkets tolv trummor i spårordning (som Trumma i Stampverket.h), förkortade för skärmen.
 inline const char* trumKort (int i)
@@ -83,7 +85,9 @@ struct Rorelse
     float fall   = 0.0f;                   // hammaren/bilan: 0 = uppe, 1 = nere
     float gnistor = 0.0f;                  // 1 vid nedslaget, avtar
     std::array<float, 12> pelare {};       // Stampverkets trummor: puls 0..1
-    std::array<float, 5>  niva {}, topp {}; // mixern: visad nivå och topphållning (0..1, i dB-skala)
+    std::array<float, antalTorn> niva {}, topp {}; // mixern: visad nivå och topphållning (0..1, i dB-skala)
+    float dimFas = 0.0f;                   // Dimman: dimbankarnas drift
+    float dimNiva = 0.0f;                  // Dimman: kanalens nivå (0..1, i dB-skala)
 
     static constexpr int spar = 96;         // historik för modulationsskrivarna
     std::array<std::array<float, spar>, 4> historik {};   // lfo 1, lfo 2, menv 1, menv 2
@@ -482,8 +486,8 @@ inline constexpr int mixSegment = 12;
 
 inline void mixTorn (int i, float& x0, float& x1)
 {
-    const float xs[5] { -5.0f, -2.9f, -0.8f, 1.3f, 3.6f };
-    x0 = xs[i]; x1 = x0 + (i == 4 ? 1.7f : 1.2f);
+    const float xs[antalTorn] { -5.4f, -3.6f, -1.8f, 0.0f, 1.8f, 3.7f };
+    x0 = xs[i]; x1 = x0 + (i == antalTorn - 1 ? 1.6f : 1.1f);
 }
 
 inline void mixSegmentLada (juce::Path& p, const Kamera& k, int torn, int seg, bool fram = false)
@@ -501,22 +505,22 @@ inline void mixSegmentLada (juce::Path& p, const Kamera& k, int torn, int seg, b
 
 inline const char* mixNamn (int i)
 {
-    static const char* n[5] { "KB1", "KB2", "STV", "HUG", "MST" };
-    return n[juce::jlimit (0, 4, i)];
+    static const char* n[antalTorn] { "KB1", "KB2", "STV", "HUG", "DIM", "MST" };
+    return n[juce::jlimit (0, antalTorn - 1, i)];
 }
 
 inline void ritaMixerGrund (juce::Graphics& g, Rectangle<float> r)
 {
     const auto k = golvKamera (r);
     juce::Path p;
-    for (int t = 0; t < 5; ++t)
+    for (int t = 0; t < antalTorn; ++t)
         for (int s = 0; s < mixSegment; ++s) mixSegmentLada (p, k, t, s);
     sk::glodlinje (g, p, farg::skarmCyan.withAlpha (0.16f), 0.6f, 0.4f);
-    for (int t = 0; t < 5; ++t)
+    for (int t = 0; t < antalTorn; ++t)
     {
         float x0, x1; mixTorn (t, x0, x1);
         const auto fot = k ({ (x0 + x1) * 0.5f, golvY, 5.0f });
-        scenText (g, mixNamn (t), fot.x, fot.y + 5.0f, 1.5f, t == 4 ? farg::skarmVit : farg::skarmCyan.withAlpha (0.9f), true);
+        scenText (g, mixNamn (t), fot.x, fot.y + 5.0f, 1.5f, t == antalTorn - 1 ? farg::skarmVit : farg::skarmCyan.withAlpha (0.9f), true);
     }
 }
 
@@ -680,6 +684,40 @@ inline void ritaLfoFormer (juce::Graphics& g, Rectangle<float> r, const SkarmDat
 // Lagren per scen
 
 // Bakgrunden (cachas per scen och storlek).
+// Dimman: skorstenar i bakgrunden (dimbankarna rör sig i ritaLevande).
+inline void ritaSkorstenar (juce::Graphics& g, Rectangle<float> r)
+{
+    const auto k = golvKamera (r);
+    juce::Path p;
+    const float xs[4] { -4.6f, -3.3f, 2.4f, 3.9f }, hs[4] { 3.6f, 4.4f, 4.0f, 3.2f };
+    for (int i = 0; i < 4; ++i)
+    {
+        lada (p, k, {}, { xs[i], golvY, 9.0f }, { xs[i] + 0.55f, golvY + hs[i], 9.5f });
+        lada (p, k, {}, { xs[i] - 0.08f, golvY + hs[i], 8.92f }, { xs[i] + 0.63f, golvY + hs[i] + 0.18f, 9.58f });
+    }
+    sk::glodlinje (g, p, farg::skarmCyan.withAlpha (0.35f), 0.7f, 0.5f);
+}
+
+// Dimbankarna: vågiga band som driver över golvet, tätare och ljusare ju högre Dimman spelar.
+inline void ritaDimma (juce::Graphics& g, Rectangle<float> r, const Rorelse& m)
+{
+    const auto k = golvKamera (r);
+    const float styrka = juce::jlimit (0.0f, 1.0f, m.dimNiva);
+    for (int b = 0; b < 5; ++b)
+    {
+        const float z = 2.0f + (float) b * 1.4f, fas = m.dimFas * (0.6f + 0.15f * (float) b) + (float) b * 1.7f;
+        juce::Path p;
+        for (int i = 0; i <= 48; ++i)
+        {
+            const float x = -6.0f + 12.0f * (float) i / 48.0f;
+            const float y = golvY + 0.35f + 0.25f * (float) b + (0.12f + 0.35f * styrka) * std::sin (x * 0.9f + fas) * std::sin (x * 0.37f - fas * 0.6f);
+            const auto pt = k ({ x, y, z });
+            if (i == 0) p.startNewSubPath (pt); else p.lineTo (pt);
+        }
+        levandeLinje (g, p, (b % 2 == 0 ? farg::skarmCyan : farg::skarmVit).withAlpha (0.25f + 0.6f * styrka * (1.0f - 0.12f * (float) b)), 0.9f, 0.4f + 0.6f * styrka);
+    }
+}
+
 inline void ritaBakgrund (juce::Graphics& g, Rectangle<float> r, Scen s)
 {
     ritaGrund (g, r, s != Scen::Modulation);
@@ -692,6 +730,7 @@ inline void ritaBakgrund (juce::Graphics& g, Rectangle<float> r, Scen s)
         case Scen::Mixer:       ritaMixerGrund (g, r); break;
         case Scen::Effekter:    ritaEffektGrund (g, r); break;
         case Scen::Modulation:  ritaModGrund (g, r); break;
+        case Scen::Dimman:      ritaSkorstenar (g, r); ritaFonster (g, scopeRuta (r)); break;
     }
 }
 
@@ -800,6 +839,12 @@ inline void ritaLevande (juce::Graphics& g, Rectangle<float> r, Scen s, const Sk
         }
 
         case Scen::Mixer:       break;     // tornen är sprajtar (ritaTorn), Bildskarm klipper dem efter nivån
+
+        case Scen::Dimman:
+            ritaDimma (g, r, m);
+            ritaScope (g, scopeRuta (r), d);
+            ritaSpelhuvud (g, r, d);
+            break;
 
         case Scen::Effekter:
         {

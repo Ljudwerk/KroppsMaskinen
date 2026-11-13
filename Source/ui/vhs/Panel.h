@@ -117,7 +117,7 @@ public:
     void valjVy (Vy v, int kanal)
     {
         lage.vy = v;
-        lage.kanal = juce::jlimit (0, 3, kanal);
+        lage.kanal = juce::jlimit (0, antalKanaler - 1, kanal);
         klaviatur.oktav = oktavPerKanal[(size_t) lage.kanal];
         andrat();
     }
@@ -137,7 +137,7 @@ public:
     {
         juce::StringArray ut;
         for (auto& r : reglage) if (auto* p = dynamic_cast<ParamReglage*> (r.get())) ut.addIfNotAlreadyThere (p->paramId());
-        for (auto* id : { params::id::spela, params::id::varvtal, params::id::varvLage, params::id::midiAlla })
+        for (auto* id : { params::id::spela, params::id::varvtal, params::id::varvLage, params::id::midiAlla, params::id::midiUt })
             ut.addIfNotAlreadyThere (id);
         ut.addIfNotAlreadyThere (params::id::fx ("kass", "kvalitet"));
         for (int k = 0; k < antalKanaler; ++k)
@@ -217,8 +217,8 @@ private:
 
     static juce::String kanalNamnet (int k)
     {
-        static const char* n[4] { "KOLVBASEN", "KOLVBAS 2", "STAMPVERKET", "HUGGET" };
-        return n[juce::jlimit (0, 3, k)];
+        static const char* n[antalKanaler] { "KOLVBASEN", "KOLVBAS 2", "STAMPVERKET", "HUGGET", "DIMMAN" };
+        return n[juce::jlimit (0, antalKanaler - 1, k)];
     }
     static juce::String trumKort (int t)
     {
@@ -280,6 +280,20 @@ private:
         },
         [this] { return (juce::int64) (param (params::id::midiAlla) > 0.5f); },
         [this] (const juce::MouseEvent&) { satt (params::id::midiAlla, param (params::id::midiAlla) > 0.5f ? 0.0f : 1.0f); });
+
+        // MIDI ut: sekvensernas toner till DAW:en eller hårdvaran. Klick: Av → Med ljudet → Bara MIDI.
+        yta ({ 408, 62, 192, 14 }, [this] (juce::Graphics& g, Rectangle<float> r)
+        {
+            const int l = (int) param (params::id::midiUt);
+            const juce::String t = l == 0 ? juce::String ("MIDI UT") : (l == 1 ? juce::String ("MIDI UT: MED LJUDET") : juce::String ("MIDI UT: BARA MIDI"));
+            prov::diodMedText (g, { r.getX() + 6.0f, r.getCentreY() }, t, l > 0, l == 2 ? farg::lysOrange : farg::lysRod);
+        },
+        [this] { return (juce::int64) param (params::id::midiUt); },
+        [this] (const juce::MouseEvent& e)
+        {
+            const int l = (int) param (params::id::midiUt);
+            satt (params::id::midiUt, (float) ((l + (e.mods.isShiftDown() || e.mods.isPopupMenu() ? 2 : 1)) % 3));
+        });
 
         // Bandhastigheten (Kassettens kvalitet): SP / LP / EP.
         yta ({ 742, 21, 36, 38 }, [this] (juce::Graphics& g, Rectangle<float> r)
@@ -797,32 +811,32 @@ private:
         sekvens.setBounds ((int) x0, (int) y0 + 92, 862, 430);
         sidKomp.push_back ({ sSekvens, &sekvens, {} });
 
-        // --- MIXER: en remsa per kanal och Taktverket
+        // --- MIXER: en remsa per kanal (fem sedan fas 5) och Taktverket
         for (int k = 0; k < antalKanaler; ++k)
         {
-            const float x = x0 + (float) k * 176.0f, cx = x + 84.0f;
-            lada (sMixer, { x, y0, 168.0f, 522.0f }, kanalNamnet (k));
-            pa (sMixer, valj (id::kanal (k, "drivetLage"), "Drivet", 76), x + 46.0f, y0 + 26.0f);
-            pa (sMixer, ratt (id::kanal (k, "drivetMangd"), "Mängd"), x + 124.0f, y0 + 26.0f);
-            pa (sMixer, stor (id::kanal (k, "sandA"), "→ Grindrum", 16.0f), x + 46.0f, y0 + 100.0f);
-            pa (sMixer, stor (id::kanal (k, "sandB"), "→ Ekot", 16.0f), x + 124.0f, y0 + 100.0f);
-            pa (sMixer, stor (id::kanal (k, "pan"), "Pan", 16.0f), cx, y0 + 190.0f);
-            fader (id::kanal (k, "niva"), "Nivå", x + 42.0f, y0 + 282.0f, 180.0f, sMixer);
-            pa (sMixer, nivaStapel (k), x + 118.0f, y0 + 290.0f);
-            pa (sMixer, knapp (id::kanal (k, "tyst"), "Tyst"), x + 32.0f, y0 + 464.0f);
-            pa (sMixer, knapp (id::kanal (k, "solo"), "Solo"), x + 84.0f, y0 + 464.0f);
-            pa (sMixer, knapp (id::kanal (k, "midi"), "MIDI"), x + 136.0f, y0 + 464.0f);
+            const float x = x0 + (float) k * 140.0f, cx = x + 67.0f;
+            lada (sMixer, { x, y0, 134.0f, 522.0f }, kanalNamnet (k));
+            pa (sMixer, valj (id::kanal (k, "drivetLage"), "Drivet", 62), x + 36.0f, y0 + 26.0f);
+            pa (sMixer, ratt (id::kanal (k, "drivetMangd"), "Mängd"), x + 102.0f, y0 + 26.0f);
+            pa (sMixer, stor (id::kanal (k, "sandA"), "→ Grindrum", 15.0f), x + 36.0f, y0 + 100.0f);
+            pa (sMixer, stor (id::kanal (k, "sandB"), "→ Ekot", 15.0f), x + 100.0f, y0 + 100.0f);
+            pa (sMixer, stor (id::kanal (k, "pan"), "Pan", 15.0f), cx, y0 + 190.0f);
+            fader (id::kanal (k, "niva"), "Nivå", x + 32.0f, y0 + 282.0f, 180.0f, sMixer);
+            pa (sMixer, nivaStapel (k), x + 96.0f, y0 + 290.0f);
+            pa (sMixer, knapp (id::kanal (k, "tyst"), "Tyst"), x + 24.0f, y0 + 464.0f);
+            pa (sMixer, knapp (id::kanal (k, "solo"), "Solo"), x + 67.0f, y0 + 464.0f);
+            pa (sMixer, knapp (id::kanal (k, "midi"), "MIDI"), x + 110.0f, y0 + 464.0f);
         }
         {
-            const float x = x0 + 4.0f * 176.0f;
-            lada (sMixer, { x, y0, 158.0f, 522.0f }, "TAKT OCH MASTER");
-            pa (sMixer, ratt (id::grundton, "Grundton"), x + 42.0f, y0 + 24.0f);
-            pa (sMixer, ratt (id::gung, "Gung"), x + 116.0f, y0 + 24.0f);
+            const float x = x0 + (float) antalKanaler * 140.0f;
+            lada (sMixer, { x, y0, 162.0f, 522.0f }, "TAKT OCH MASTER");
+            pa (sMixer, ratt (id::grundton, "Grundton"), x + 44.0f, y0 + 24.0f);
+            pa (sMixer, ratt (id::gung, "Gung"), x + 118.0f, y0 + 24.0f);
             // Stämningen (fas 5): skalan, tonikan och Scala-filerna.
-            pa (sMixer, valj (id::stamning, "Stämning", 132), x + 79.0f, y0 + 104.0f);
-            pa (sMixer, valj (id::stamningTon, "Tonika", 60), x + 42.0f, y0 + 168.0f);
-            pa (sMixer, *handling ("Scala…", [this] { stamningsMeny(); }), x + 116.0f, y0 + 168.0f);
-            fader (id::master, "Master", x + 57.0f, y0 + 282.0f, 180.0f, sMixer);
+            pa (sMixer, valj (id::stamning, "Stämning", 132), x + 81.0f, y0 + 104.0f);
+            pa (sMixer, valj (id::stamningTon, "Tonika", 60), x + 44.0f, y0 + 168.0f);
+            pa (sMixer, *handling ("Scala…", [this] { stamningsMeny(); }), x + 118.0f, y0 + 168.0f);
+            fader (id::master, "Master", x + 59.0f, y0 + 282.0f, 180.0f, sMixer);
         }
 
         // --- EFFEKTER: rummet, ekot och svajet överst, Klämman och Kassetten under
@@ -1016,6 +1030,22 @@ private:
             drivetLada (sida, (int) Kanal::Hugget, { x0, yRad4, bred, 100.0f });
             kanalLada (sida, (int) Kanal::Hugget);
         }
+
+        // --- Dimman (fas 5)
+        {
+            const int sida = 5 + (int) Kanal::Dimman;
+            const Rectangle<float> di (x0, y0, vanster, 208.0f);
+            lada (sida, di, "DIMMAN");
+            rad (sida, di, { &valj (id::di ("lage"), "Läge", 96), &valj (id::di ("ackord"), "Ackord", 80), &ratt (id::di ("oktav"), "Oktav"),
+                             &valj (id::di ("dron"), "Drön", 80) }, y0 + 26.0f);
+            rad (sida, di, { &stor (id::di ("klang"), "Klang", 17.0f), &stor (id::di ("rorelse"), "Rörelse", 17.0f), &stor (id::di ("bredd"), "Bredd", 17.0f),
+                             &stor (id::di ("vokal"), "Vokal", 17.0f) }, y0 + 104.0f);
+            const Rectangle<float> env (x0, yRad3, bred, 96.0f);
+            lada (sida, env, "ENVELOPE OCH ENSEMBLE");
+            rad (sida, env, { &stor (id::di ("attack"), "Attack", 15.0f), &stor (id::di ("slapp"), "Släpp", 15.0f), &stor (id::di ("ensemble"), "Ensemble", 15.0f) }, yRad3 + 22.0f);
+            drivetLada (sida, (int) Kanal::Dimman, { x0, yRad4, bred, 100.0f });
+            kanalLada (sida, (int) Kanal::Dimman);
+        }
     }
 
     // Kanalens nivå som lysdiodsstapel (MIXER).
@@ -1037,18 +1067,20 @@ private:
         using namespace km::stil;
         for (int i = 0; i < antalKanaler; ++i)
         {
-            const Rectangle<int> k (916 + (i % 2) * 132, 486 + (i / 2) * 66, 128, 60);
+            // Två kolumner och tre rader; Dimman (kanal 5) tar hela nedersta raden.
+            const Rectangle<int> k = i < 4 ? Rectangle<int> (916 + (i % 2) * 132, 484 + (i / 2) * 46, 128, 43)
+                                           : Rectangle<int> (916, 484 + 2 * 46, 260, 43);
             auto& t = yta (k, [this, i] (juce::Graphics& g, Rectangle<float> kr)
             {
                 const bool aktiv = i == lage.kanal;
                 const bool tyst = param (params::id::kanal (i, "tyst")) > 0.5f;
                 auto y = ritaKnapp (g, kr.reduced (1.5f), aktiv, aktiv ? Colour (0xff29191a) : Colour (0xff222227));
                 ritaLysdiod (g, { y.getX() + 10.0f, y.getY() + 11.0f }, 2.3f, farg::lysRod, aktiv ? 1.0f : 0.0f);
-                tryck (g, "KANAL " + juce::String (i + 1), { y.getX() + 18.0f, y.getY() + 7.0f, 70.0f, 8.0f }, 4.8f, juce::Justification::centredLeft, farg::silverMatt);
-                if (tyst) tryck (g, "TYST", { y.getX() + 8.0f, y.getBottom() - 16.0f, 60.0f, 8.0f }, 4.8f, juce::Justification::centredLeft, farg::tryckRott);
-                rubrik (g, kanalNamnet (i), { y.getX() + 8.0f, y.getY() + 24.0f, y.getWidth() - 24.0f, 11.0f }, 9.5f,
+                tryck (g, "KANAL " + juce::String (i + 1), { y.getX() + 18.0f, y.getY() + 6.0f, 70.0f, 8.0f }, 4.8f, juce::Justification::centredLeft, farg::silverMatt);
+                if (tyst) tryck (g, "TYST", { y.getRight() - 52.0f, y.getY() + 6.0f, 36.0f, 8.0f }, 4.8f, juce::Justification::centredRight, farg::tryckRott);
+                rubrik (g, kanalNamnet (i), { y.getX() + 8.0f, y.getY() + 19.0f, y.getWidth() - 24.0f, 11.0f }, 9.5f,
                         aktiv ? farg::vitt : farg::silver, juce::Justification::centredLeft, aktiv ? 1.5f : 1.1f, 1.6f);
-                ritaLedStapel (g, { y.getRight() - 9.0f, y.getY() + 6.0f, 4.0f, y.getHeight() - 12.0f }, kanalVisad[(size_t) i], 8, true);
+                ritaLedStapel (g, { y.getRight() - 9.0f, y.getY() + 5.0f, 4.0f, y.getHeight() - 10.0f }, kanalVisad[(size_t) i], 8, true);
             },
             [this, i] { return (juce::int64) (kanalVisad[(size_t) i] * 8.0f) + 16 * (i == lage.kanal) + 32 * (param (params::id::kanal (i, "tyst")) > 0.5f); },
             [this, i] (const juce::MouseEvent& e)
@@ -1167,6 +1199,7 @@ private:
         {
             int bas = (int) param (params::id::grundton);
             if (lage.kanal == (int) Kanal::Hugget) bas += 12 * (2 + (int) param (params::id::hu ("oktav")));
+            if (lage.kanal == (int) Kanal::Dimman) bas += 12 * (2 + (int) param (params::id::di ("oktav")));
             int h = notnr - bas, okt = 0;
             while (h > 12 && okt < 1) { h -= 12; ++okt; }
             while (h < -12 && okt > -1) { h += 12; --okt; }
@@ -1484,11 +1517,11 @@ private:
     int monsterStart = 0;
     float monsterStartY = 0.0f;
     bool monsterDrog = false;
-    std::array<int, 4> oktavPerKanal { 1, 1, 2, 3 };
+    std::array<int, antalKanaler> oktavPerKanal { 1, 1, 2, 3, 3 };
 
     std::array<float, antalKanaler> kanalVisad {}, kanalNiva {};
     std::array<std::array<Bildminne, 2>, 2> vuMinne;
-    std::array<Bildminne, 4> kanalMinne;
+    std::array<Bildminne, antalKanaler> kanalMinne;
     std::array<float, 2> vuDb { -40.0f, -40.0f };
     float reduktion = 0.0f;
     std::array<uint32_t, antalSpar> trumForra {};

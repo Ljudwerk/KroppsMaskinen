@@ -24,7 +24,7 @@ public:
     std::function<void (int notnr, float styrka)> nedslag;
 
     int basNot() const { return 12 * (oktav + 1); }
-    int midiKanal() const { static const int k[4] { 1, 2, 10, 3 }; return k[juce::jlimit (0, 3, lage.kanal)]; }
+    int midiKanal() const { static const int k[antalKanaler] { 1, 2, 10, 3, 4 }; return k[juce::jlimit (0, antalKanaler - 1, lage.kanal)]; }
 
     void paint (juce::Graphics& g) override
     {

@@ -1,6 +1,6 @@
 // KMSnapshot – ritar panelen till PNG, så att gränssnittet kan granskas utan DAW.
 //
-//   KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–4] [preset] [id=värde …]
+//   KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–5] [preset] [id=värde …]
 //        VHS-panelen; vy 1 KANAL, 2 SEKVENS, 3 MIXER, 4 EFFEKTER, 5 MODULATION, 6 LÅTEN. Skalan är fysisk (2 = Retina).
 //   KMSnapshot --klicktest                           hela klicktestet: varje reglage ändrar (bara) sin parameter, alla
 //                                                    parametrar nås, allt i alla vyer klickas, och låtvyns klick (OK/FEL)
@@ -56,6 +56,7 @@ static int manualbilder (const char* katalogNamn, const char* jag)
         { "panelen_stampverket.png", "1", "1", "3", "Kolv 125", nullptr },
         { "panelen_laten.png",       "1", "6", "1", "Stålverket 128", nullptr },
         { "panelen_gjuteriet.png",   "1", "1", "3", "Kolv 125", "km_sv_kit=4" },
+        { "panelen_dimman.png",      "1", "1", "5", "Skiftbyte 124", nullptr },
         { "_allt_fran_midi.png",     "2", "3", "1", "Kolv 125", "km_midi_alla=1" },
     };
     int fel = 0;
@@ -142,12 +143,12 @@ int main (int argc, char* argv[])
         km::stil::prov::Detaljer detaljer;
         return sparaPNG (detaljer, fil, skala, "Detaljarket");
     }
-    // VHS-panelen: KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–4] [preset]
+    // VHS-panelen: KMSnapshot fil.png [skala] [vy 1–6] [kanal 1–5] [preset]
     const bool tid = lage == "--panel-tid" || lage == "--panel-parametrar" || lage == "--panel-klick" || lage == "--lat-klick" || klicktest;
     const juce::File fil = juce::File::getCurrentWorkingDirectory().getChildFile (tid ? "x.png" : argv[1]);
     const float skala = argc > 2 ? (float) juce::String (argv[2]).getDoubleValue() : 1.0f;
     const int vy = ! tid && argc > 3 ? juce::jlimit (1, 6, juce::String (argv[3]).getIntValue()) : 1;
-    const int kanal = ! tid && argc > 4 ? juce::jlimit (1, 4, juce::String (argv[4]).getIntValue()) : 1;
+    const int kanal = ! tid && argc > 4 ? juce::jlimit (1, km::antalKanaler, juce::String (argv[4]).getIntValue()) : 1;
     const juce::String preset = ! tid && argc > 5 ? juce::String::fromUTF8 (argv[5])
                               : (lage == "--lat-klick" || klicktest ? juce::String::fromUTF8 ("Stålverket 128") : juce::String ("Kolv 125"));
 
@@ -185,7 +186,7 @@ int main (int argc, char* argv[])
         for (auto* c : panel.getChildren()) if (auto* l = dynamic_cast<km::vhs::LatVy*> (c)) vy = l;
         if (vy == nullptr || proc.banker.laten.antal() == 0) { std::cout << "ingen låt\n"; return 1; }
         auto kalla = juce::Desktop::getInstance().getMainMouseSource();
-        const float rh = (float) vy->getHeight() / 8.0f, x = km::vhs::LatVy::etikettB + ((float) vy->getWidth() - km::vhs::LatVy::etikettB - 4.0f) / 32.0f;
+        const float rh = (float) vy->getHeight() / (float) km::vhs::LatVy::antalRaderIVy, x = km::vhs::LatVy::etikettB + ((float) vy->getWidth() - km::vhs::LatVy::etikettB - 4.0f) / 32.0f;
         auto klick = [&] (int radIVy, bool hoger)
         {
             const juce::Point<float> p (x, ((float) radIVy + 0.5f) * rh);
@@ -195,19 +196,20 @@ int main (int argc, char* argv[])
             juce::MouseEvent upp (kalla, p, hoger ? m : juce::ModifierKeys(), 1.0f, 0, 0, 0, 0, vy, vy, t, p, t, 1, false);
             vy->mouseDown (ned); vy->mouseUp (upp);
         };
+        const int S = km::vhs::LatVy::spanRad, T = km::vhs::LatVy::transpRad;
         auto rad = [&] { return proc.banker.laten.get (0); };
         auto r0 = rad(); r0.spanning = -1; r0.takter = 4; r0.transponering = 0; proc.banker.laten.set (0, r0);
         int fel = 0;
         auto koll = [&] (bool ok, const char* vad) { std::cout << (ok ? "  ok   " : "  FEL  ") << vad << "\n"; fel += ok ? 0 : 1; };
-        klick (6, false); koll (rad().spanning == 0, "Spänningen: klick från – ger 0 %");
-        klick (6, false); klick (6, false); koll (rad().spanning == 20, "Spänningen: två klick till ger 20 %");
-        klick (6, true); koll (rad().spanning == 10, "Spänningen: högerklick ger 10 %");
-        klick (6, true); klick (6, true); koll (rad().spanning == -1, "Spänningen: ned under 0 ger –");
-        klick (7, false); klick (7, false); klick (7, true); koll (rad().transponering == 1, "Transponering: +1 +1 −1");
+        klick (S, false); koll (rad().spanning == 0, "Spänningen: klick från – ger 0 %");
+        klick (S, false); klick (S, false); koll (rad().spanning == 20, "Spänningen: två klick till ger 20 %");
+        klick (S, true); koll (rad().spanning == 10, "Spänningen: högerklick ger 10 %");
+        klick (S, true); klick (S, true); koll (rad().spanning == -1, "Spänningen: ned under 0 ger –");
+        klick (T, false); klick (T, false); klick (T, true); koll (rad().transponering == 1, "Transponering: +1 +1 −1");
         klick (1, false); koll (rad().takter == 5, "Takter: klick ger 5");
         {
             r0 = rad(); r0.spanning = 50; proc.banker.laten.set (0, r0);
-            const juce::Point<float> p (x, 6.5f * rh);
+            const juce::Point<float> p (x, ((float) S + 0.5f) * rh);
             const auto t = juce::Time::getCurrentTime();
             juce::MouseEvent e (kalla, p, {}, 1.0f, 0, 0, 0, 0, vy, vy, t, p, t, 0, false);
             for (int i = 0; i < 5; ++i) vy->mouseWheelMove (e, { 0.0f, 0.0f, false, true, false });
@@ -245,11 +247,12 @@ int main (int argc, char* argv[])
         std::set<juce::String> provade;
         int fel = 0;
         for (int v = 0; v < 6; ++v)
-            for (int k = 0; k < 4 + km::antalSpar; ++k)   // Stampverkets sida en gång per vald trumma
+            for (int k = 0; k < km::antalKanaler + km::antalSpar; ++k)   // Stampverkets sida en gång per vald trumma
             {
-                if (k >= 4 && v != 0) continue;
-                panel.valjVy ((km::vhs::Vy) v, std::min (k, 3) == 3 && k >= 4 ? 2 : std::min (k, 3));
-                if (k >= 4) { panel.getLage().valdTrumma = k - 4; panel.valjVy (km::vhs::Vy::Kanal, 2); }
+                const int nK = km::antalKanaler;
+                if (k >= nK && v != 0) continue;
+                panel.valjVy ((km::vhs::Vy) v, k < nK ? k : 2);
+                if (k >= nK) { panel.getLage().valdTrumma = k - nK; panel.valjVy (km::vhs::Vy::Kanal, 2); }
                 for (auto& [c, id] : panel.parameterReglage())
                 {
                     if (! c->isShowing() && ! c->isVisible()) continue;
@@ -302,7 +305,7 @@ int main (int argc, char* argv[])
         };
         const juce::Rectangle<int> undantag (906, 150, 280, 40);   // ◀ ▶ SPARA MENY och presetnumret
         for (int v = 0; v < 6; ++v)
-            for (int k = 0; k < 4; ++k)
+            for (int k = 0; k < km::antalKanaler; ++k)
             {
                 panel.valjVy ((km::vhs::Vy) v, k);
                 for (auto* c : panel.getChildren())

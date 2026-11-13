@@ -75,6 +75,7 @@ inline const std::vector<FactoryPreset>& factoryPresets()
     const auto variant = [] (Kanal k) { return id::kanal ((int) k, "variant"); };
     constexpr float ror = 1, overdrive = 2, bitkross = 3, ab = 2;
     const auto hu = [] (const char* vad) { return id::hu (vad); };
+    const auto di = [] (const char* vad) { return id::di (vad); };
     const auto fx = [] (const char* e, const char* vad) { return id::fx (e, vad); };
     const auto k = [] (Kanal kanal, const char* vad) { return id::kanal ((int) kanal, vad); };
     enum { orkester = 0, blas, kor, klocka, synklead, pulslead, fmlead };
@@ -1552,6 +1553,74 @@ inline const std::vector<FactoryPreset>& factoryPresets()
           "4 kb=1AB kb2=1AB sv=1AB hu=1AB tyst=hu sp=30; "         // utgång
           "4 kb=3AB kb2=1AB sv=3AB hu=4AB tyst=kb2 sp=10; "
           "1 kb=6A sv=8A hu=4A tyst=kb2 sp=0" },                   // slutslaget
+
+        // ---- Fas 5: Dimman (mattor och drön) och Gjuteriet. Läggs sist, så att DAW:ens programnummer står kvar.
+        // Drönmaskinen håller ett mollackord under en långsam industrigång på Gjuteriets metall.
+        { "Dimbank 96", "Industri",
+          { { id::tempo, 96.0f }, { id::master, 0.75f }, { id::grundton, 31.0f }, { id::kit, kit (Kit::Gjuteriet) },
+            { kb ("vag"), 0.0f }, { kb ("sub"), 0.6f }, { kb ("cutoff"), 140.0f }, { kb ("resonans"), 0.5f }, { kb ("envMangd"), 0.45f },
+            { kb ("filterFall"), 0.25f }, { kb ("fall"), 0.4f }, { kb ("hall"), 0.6f }, { kb ("drive"), 0.6f },
+            { drivet (Kanal::Kolvbasen), ror }, { mangd (Kanal::Kolvbasen), 0.4f }, { variant (Kanal::Kolvbasen), ab },
+            { variant (Kanal::Stampverket), ab }, { trum (T::Metall, "klang"), 0.7f }, { trum (T::Cymbal, "niva"), 0.5f },
+            { k (Kanal::Stampverket, "sandA"), 0.5f },
+            { di ("lage"), 2.0f }, { di ("dron"), 2.0f }, { di ("ackord"), (float) moll }, { di ("oktav"), -1.0f },
+            { di ("attack"), 2.5f }, { di ("slapp"), 4.0f }, { di ("klang"), 0.35f }, { di ("rorelse"), 0.7f }, { di ("bredd"), 0.8f },
+            { di ("ensemble"), 0.3f }, { k (Kanal::Dimman, "niva"), 0.6f }, { k (Kanal::Dimman, "sandA"), 0.3f }, { k (Kanal::Dimman, "sandB"), 0.2f },
+            { fx ("gr", "storlek"), 1.0f }, { fx ("gr", "hallTid"), 0.5f }, { fx ("gr", "niva"), 0.7f },
+            { fx ("eko", "tid"), (float) e38 }, { fx ("eko", "aterkoppling"), 0.45f }, { fx ("eko", "niva"), 0.35f },
+            { fx ("klam", "troskel"), -14.0f }, { fx ("klam", "kvot"), 4.0f }, { fx ("klam", "pump"), 0.3f },
+            { fx ("kass", "kvalitet"), (float) lp }, { fx ("kass", "slitage"), 0.3f } },
+          { { 0, 0, { { T::Bastrumma, "2000000020100000" }, { T::Virvel, "0000200000002000" }, { T::Virvel2, "0000000000000010" },
+                      { T::Metall, "0000000010000000" }, { T::StangdHihat, "1010101010101010" } } },
+            { 0, 1, { { T::Bastrumma, "2000000020100010" }, { T::Virvel, "0000200000002020" }, { T::Cymbal, "1000000000000000" },
+                      { T::Metall, "0000000010001000" }, { T::StangdHihat, "1010101010101010" } } },
+            { 1, 0, { { T::Bastrumma, "2000200020002000" }, { T::Virvel, "0000200000002000" }, { T::Virvel2, "0010001000100010" },
+                      { T::Small, "0000000000000001" } } } },
+          { { Kanal::Kolvbasen, 0, 0, "0a . 0 . . 0 . . 0a . . 0 . -2 . ." },
+            { Kanal::Kolvbasen, 0, 1, "0a . 0 . . 0 . . 3a . . 0 . -2~ 0 ." },
+            { Kanal::Kolvbasen, 1, 0, "0a 0 0u 0 0a 0 0u 0 -2a -2 -2u -2 -4a -4 -4u -4" } } },
+
+        // Körmattor över en New Beat-gång: två ackord som byter varannan takt.
+        { "Kalla salar 112", "New Beat",
+          { { id::tempo, 112.0f }, { id::master, 0.75f }, { id::grundton, 33.0f }, { id::kit, kit (Kit::Niononio) },
+            { kb ("vag"), 0.6f }, { kb ("pulsbredd"), 30.0f }, { kb ("sub"), 0.4f }, { kb ("cutoff"), 260.0f }, { kb ("resonans"), 0.55f },
+            { kb ("envMangd"), 0.55f }, { kb ("filterFall"), 0.12f }, { kb ("accent"), 0.6f }, { kb ("fall"), 0.15f }, { kb ("hall"), 0.3f },
+            { kb ("drive"), 0.35f }, { variant (Kanal::Kolvbasen), ab }, { variant (Kanal::Stampverket), ab },
+            { trum (T::Bastrumma, "klang"), 0.55f }, { k (Kanal::Stampverket, "sandA"), 0.25f },
+            { di ("lage"), 1.0f }, { di ("ackord"), (float) moll }, { di ("vokal"), 0.35f }, { di ("attack"), 0.9f }, { di ("slapp"), 2.5f },
+            { di ("klang"), 0.45f }, { di ("rorelse"), 0.4f }, { di ("bredd"), 0.7f }, { di ("ensemble"), 0.5f },
+            { langd (Kanal::Dimman), 32.0f }, { k (Kanal::Dimman, "niva"), 0.55f }, { k (Kanal::Dimman, "sandA"), 0.35f },
+            { k (Kanal::Dimman, "sandB"), 0.25f },
+            { fx ("gr", "storlek"), 0.9f }, { fx ("gr", "hallTid"), 0.4f }, { fx ("gr", "niva"), 0.6f },
+            { fx ("eko", "tid"), (float) e4 }, { fx ("eko", "aterkoppling"), 0.35f }, { fx ("eko", "niva"), 0.3f },
+            { fx ("svaj", "lage"), 2.0f }, { fx ("svaj", "mangd"), 0.4f },
+            { fx ("klam", "troskel"), -12.0f }, { fx ("klam", "kvot"), 3.0f }, { fx ("klam", "pump"), 0.25f } },
+          { { 0, 0, { { T::Bastrumma, "2000100020001000" }, { T::Handklapp, "0000100000001000" }, { T::StangdHihat, "0010001000100010" },
+                      { T::OppenHihat, "0000000000000010" } } },
+            { 0, 1, { { T::Bastrumma, "2000100020001010" }, { T::Handklapp, "0000100000001000" }, { T::StangdHihat, "0010001000100010" },
+                      { T::Kubjallra, "0000000100000001" } } } },
+          { { Kanal::Kolvbasen, 0, 0, "0a . 0 0 . 0 0u . 0a . 0 0 . 0 3 ." },
+            { Kanal::Kolvbasen, 0, 1, "0a . 0 0 . 0 0u . -2a . -2 -2 . -2 0 ." },
+            { Kanal::Dimman, 0, 0, "0~ . . . . . . . . . . . . . . . -4~ . . . . . . . . . . . . . . ." },
+            { Kanal::Dimman, 1, 0, "3~ . . . . . . . . . . . . . . . -2~ . . . . . . . . . . . . . . ." } } },
+
+        // Syntmattan som stötar och hållna moll 7-ackord över en rak EBM-gång.
+        { "Skiftbyte 124", "EBM",
+          { { id::tempo, 124.0f }, { id::master, 0.78f }, { id::grundton, 36.0f }, { id::kit, kit (Kit::Fabrik) },
+            { kb ("vag"), 0.2f }, { kb ("sub"), 0.6f }, { kb ("cutoff"), 180.0f }, { kb ("resonans"), 0.45f }, { kb ("envMangd"), 0.6f },
+            { kb ("filterFall"), 0.1f }, { kb ("accent"), 0.7f }, { kb ("fall"), 0.16f }, { kb ("hall"), 0.4f }, { kb ("drive"), 0.5f },
+            { variant (Kanal::Kolvbasen), ab },
+            { di ("lage"), 0.0f }, { di ("ackord"), (float) moll7 }, { di ("attack"), 0.25f }, { di ("slapp"), 1.5f }, { di ("klang"), 0.55f },
+            { di ("rorelse"), 0.35f }, { di ("bredd"), 0.6f }, { di ("ensemble"), 0.6f }, { langd (Kanal::Dimman), 32.0f },
+            { k (Kanal::Dimman, "niva"), 0.5f }, { k (Kanal::Dimman, "sandB"), 0.35f }, { k (Kanal::Dimman, "pan"), 0.1f },
+            { fx ("gr", "storlek"), 0.7f }, { fx ("gr", "hallTid"), 0.3f }, { fx ("gr", "niva"), 0.6f },
+            { fx ("eko", "tid"), (float) e316 }, { fx ("eko", "aterkoppling"), 0.4f }, { fx ("eko", "niva"), 0.35f },
+            { fx ("klam", "troskel"), -14.0f }, { fx ("klam", "kvot"), 4.0f }, { fx ("klam", "pump"), 0.3f } },
+          { { 0, 0, { { T::Bastrumma, "2000200020002000" }, { T::Virvel, "0000200000002000" }, { T::StangdHihat, "0010001000100010" } } },
+            { 0, 1, { { T::Bastrumma, "2000200020002010" }, { T::Virvel, "0000200000002020" }, { T::StangdHihat, "0010001000101010" } } } },
+          { { Kanal::Kolvbasen, 0, 0, "0a 0 0u 0 0a 0 0u 0 0a 0 0u 0 0a 0 0u 0" },
+            { Kanal::Kolvbasen, 0, 1, "-4a -4 -4u -4 -4a -4 -4u -4 -2a -2 -2u -2 -2a -2 -2u -2" },
+            { Kanal::Dimman, 0, 0, "0a/2 . . . . . . . . . . . 0/1 . . . -4~ . . . . . . . . . . . -2~ . . ." } } },
     });
     return list;
 }
